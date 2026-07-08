@@ -8,7 +8,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/somaz94/kube-drift)](https://goreportcard.com/report/github.com/somaz94/kube-drift)
 ![GitHub Stars](https://img.shields.io/github/stars/somaz94/kube-drift?style=social)
 
-> **Status: early development (v0.1.0 — WIP).** The `DriftCheck` CRD, the operator, and drift detection for **`ConfigMap` sources** are implemented: the controller loads the desired manifests, compares them against the live cluster via the `kube-diff` engine, and records the result into `status`. Still pending: **`Git` sources**, a broader read-RBAC story for arbitrary compared kinds, and the end-to-end test suite. See [Roadmap](#roadmap) before depending on this.
+> **Status: early development (v0.1.0 — WIP).** The `DriftCheck` CRD, the operator, and drift detection for both **`ConfigMap` and `Git` sources** are implemented: the controller loads the desired manifests, compares them against the live cluster via the `kube-diff` engine, and records the result into `status`. Still pending: Git credential support (clones are anonymous today) and a broader read-RBAC story for arbitrary compared kinds. See [Roadmap](#roadmap) before depending on this.
 
 <br/>
 
@@ -24,7 +24,7 @@ Where `kube-diff` answers "does the cluster match this directory of YAML right n
 
 ![DriftCheck CRD](https://img.shields.io/badge/DriftCheck_CRD-326CE5?logo=kubernetes&logoColor=white)
 ![ConfigMap Source](https://img.shields.io/badge/ConfigMap_Source-blue?logo=kubernetes&logoColor=white)
-![Git Source](https://img.shields.io/badge/Git_Source-lightgrey?logo=git&logoColor=white)
+![Git Source](https://img.shields.io/badge/Git_Source-F05032?logo=git&logoColor=white)
 ![Scheduled Reconcile](https://img.shields.io/badge/Scheduled_Reconcile-green?logo=kubernetes&logoColor=white)
 ![Status Reporting](https://img.shields.io/badge/Status_Reporting-green?logo=kubernetes&logoColor=white)
 ![Kubebuilder](https://img.shields.io/badge/Kubebuilder_v4-teal?logo=kubernetes&logoColor=white)
@@ -36,15 +36,15 @@ Where `kube-diff` answers "does the cluster match this directory of YAML right n
 - **Structured status** — per-resource drift entries plus a rolled-up summary (changed / new / deleted / unchanged), `lastCheckedAt`, `observedGeneration`, and standard conditions
 - **Shared engine** — reuses the comparison engine extracted from `kube-diff`, so CLI and operator produce consistent results
 
-> Source-backend maturity: **`ConfigMap` sources are implemented; `Git` sources come later** (a `DriftCheck` with `source.type: Git` is rejected with a `SourceError` condition for now) — see [Roadmap](#roadmap).
+> Source-backend maturity: both **`ConfigMap` and `Git` sources** are implemented. Git clones **anonymously** for now (no credential support yet), so only publicly cloneable repositories work in v0.1 — see [Roadmap](#roadmap).
 
 <br/>
 
 ## How It Works
 
-Once the reconcile logic lands, each `DriftCheck` will drive the following loop:
+Each `DriftCheck` drives the following loop:
 
-1. **Load desired state** — fetch plain-YAML manifests from the configured `source` (ConfigMap key(s) or a Git repo path).
+1. **Load desired state** — fetch plain-YAML manifests from the configured `source`: ConfigMap key(s), or a Git repository cloned at `ref` with manifests read from `path`.
 2. **Read live state** — list the matching live objects, scoped by `target.namespaces` / `target.labelSelector`.
 3. **Compare** — hand both sides to the `kube-diff` engine (`engine.Compare(...)`), producing a `[]*diff.Result`.
 4. **Map to status** — classify each result as `changed`, `new`, `deleted`, or `unchanged`, write the drifted entries + summary into `.status`, and stamp `lastCheckedAt`.
@@ -152,16 +152,18 @@ Per-resource `status` values: `unchanged`, `changed`, `new`, `deleted`.
 
 - [x] `DriftCheck` CRD (`drift.somaz.io/v1alpha1`) — spec, status, printer columns
 - [x] Operator skeleton — manager, RBAC, Kustomize overlays, Helm chart, CI/CD
-- [x] Reconcile loop wired to the `kube-diff` engine (`engine.Run`) for `ConfigMap` sources — drift recorded into `status`
-- [ ] `Git` source backend
+- [x] Reconcile loop wired to the `kube-diff` engine (`engine.Run`) — drift recorded into `status`
+- [x] `ConfigMap` source backend
+- [x] `Git` source backend — clone a repo at `ref`, load plain YAML from `path` (anonymous clone; go-git, no shell-out)
+- [x] End-to-end test suite + `test-e2e.yml` on push/PR via [`kind-e2e-test-action`](https://github.com/somaz94/kind-e2e-test-action)
+- [ ] Git credential support for private repositories
 - [ ] Read-RBAC story for comparing arbitrary resource kinds (currently only `configmaps` is declared; broader read is granted at install time)
-- [ ] End-to-end test suite + restore `test-e2e.yml` to push/PR triggers
 
 <br/>
 
 ## Architecture
 
-`kube-drift` deliberately does not reimplement manifest comparison. The comparison engine was extracted into reusable packages in [`kube-diff`](https://github.com/somaz94/kube-diff), and this operator will consume them directly:
+`kube-drift` deliberately does not reimplement manifest comparison. The comparison engine was extracted into reusable packages in [`kube-diff`](https://github.com/somaz94/kube-diff), and this operator consumes them directly:
 
 - `github.com/somaz94/kube-diff/pkg/engine` — the top-level `Compare(...)` entry point
 - `github.com/somaz94/kube-diff/pkg/diff` — the `Result` type and diff classification
@@ -184,9 +186,11 @@ This keeps the CLI and the operator behaviorally consistent: the same comparison
 │       ├── groupversion_info.go             # GroupVersion registration
 │       └── zz_generated.deepcopy.go         # Generated DeepCopy methods
 ├── internal/
-│   └── controller/
-│       ├── driftcheck_controller.go         # Reconciler (stub — Phase 2)
-│       └── driftcheck_controller_test.go
+│   ├── controller/
+│   │   ├── driftcheck_controller.go         # Reconciler — load source, run kube-diff engine, write status
+│   │   └── driftcheck_controller_test.go
+│   ├── source/                              # Git desired-state source (go-git clone → FileSource)
+│   └── metrics/                             # kube_drift_resources drift gauge
 ├── config/
 │   ├── crd/bases/                           # Generated CRD YAML
 │   ├── default/                             # Main Kustomize overlay
@@ -226,7 +230,7 @@ make help                 # List all targets
 
 > After changing `api/v1alpha1/types.go`, always run `make manifests generate` and keep `helm/kube-drift/crds/` in sync with `config/crd/bases/`.
 
-The end-to-end workflow (`test-e2e.yml`) is currently gated to manual dispatch — the stub controller has no behavior to exercise yet. It will be restored to push/PR triggers once the Phase 2 reconcile logic and its e2e suite land.
+The end-to-end workflow (`test-e2e.yml`) runs the kind-based e2e suite on push / PR / manual dispatch via [`kind-e2e-test-action`](https://github.com/somaz94/kind-e2e-test-action): it builds the image, loads it into a kind cluster, deploys the controller, and asserts a `DriftCheck` detects drift and exposes the `kube_drift_resources` metric.
 
 <br/>
 

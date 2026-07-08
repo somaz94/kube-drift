@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -164,15 +166,28 @@ metadata:
 	}
 }
 
-func TestReconcile_GitSourceUnsupported(t *testing.T) {
+func TestReconcile_GitSourceDetectsDrift(t *testing.T) {
 	scheme := newScheme(t)
 	dc := &myv1.DriftCheck{
 		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
 		Spec: myv1.DriftCheckSpec{
-			Source: myv1.Source{Type: myv1.SourceTypeGit, Git: &myv1.GitSource{URL: "https://example.com/repo.git"}},
+			Source: myv1.Source{
+				Type: myv1.SourceTypeGit,
+				Git:  &myv1.GitSource{URL: "https://example.com/repo.git", Ref: "main", Path: "manifests"},
+			},
 		},
 	}
+
+	// Live cluster is empty, so the desired ConfigMap surfaces as "new".
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
+	r.GitCloner = func(_ context.Context, dir, _, _ string) error {
+		sub := filepath.Join(dir, "manifests")
+		if err := os.MkdirAll(sub, 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(sub, "cm.yaml"),
+			[]byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: from-git\n  namespace: default\n"), 0o644)
+	}
 
 	res, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
@@ -180,14 +195,60 @@ func TestReconcile_GitSourceUnsupported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v, want nil", err)
 	}
-	// Interval defaulted to 5m when unset.
 	if res.RequeueAfter != 5*time.Minute {
 		t.Errorf("RequeueAfter = %v, want 5m (default)", res.RequeueAfter)
 	}
+
 	var got myv1.DriftCheck
 	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got); err != nil {
 		t.Fatal(err)
 	}
+	if got.Status.Summary.New != 1 {
+		t.Errorf("summary = %+v, want new=1", got.Status.Summary)
+	}
+	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Status != metav1.ConditionTrue {
+		t.Errorf("expected a True Ready condition, got %+v", got.Status.Conditions)
+	}
+}
+
+func TestReconcile_GitSourceMissingGitBlock(t *testing.T) {
+	scheme := newScheme(t)
+	// Type is Git but the git block is absent → source resolution fails.
+	dc := &myv1.DriftCheck{
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		Spec:       myv1.DriftCheckSpec{Source: myv1.Source{Type: myv1.SourceTypeGit}},
+	}
+	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+	}); err != nil {
+		t.Fatalf("Reconcile() error = %v, want nil", err)
+	}
+	var got myv1.DriftCheck
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != "SourceError" {
+		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
+	}
+}
+
+func TestReconcile_GitSourceMissingURL(t *testing.T) {
+	scheme := newScheme(t)
+	// Type is Git with a git block but no URL → source resolution fails
+	// permanently rather than looping on clone.
+	dc := &myv1.DriftCheck{
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		Spec:       myv1.DriftCheckSpec{Source: myv1.Source{Type: myv1.SourceTypeGit, Git: &myv1.GitSource{}}},
+	}
+	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+	}); err != nil {
+		t.Fatalf("Reconcile() error = %v, want nil", err)
+	}
+	var got myv1.DriftCheck
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
 	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != "SourceError" {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}

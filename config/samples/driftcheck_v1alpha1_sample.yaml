@@ -11,6 +11,12 @@ spec:
       name: desired-manifests
       # namespace: default    # defaults to the DriftCheck's namespace
       # key: manifests.yaml    # omit to concatenate every key as a YAML stream
+    # --- Or load the desired manifests from a Git repository instead: ---
+    # type: Git
+    # git:
+    #   url: https://github.com/somaz94/kube-drift.git   # anonymous clone (public repos only in v0.1)
+    #   ref: main                                        # branch, tag, or commit; omit for the default branch
+    #   path: config/samples                             # sub-directory holding the plain-YAML manifests
   # Optionally narrow which resources are compared.
   target:
     namespaces:

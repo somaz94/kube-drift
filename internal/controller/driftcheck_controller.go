@@ -19,6 +19,7 @@ import (
 
 	driftv1alpha1 "github.com/somaz94/kube-drift/api/v1alpha1"
 	"github.com/somaz94/kube-drift/internal/metrics"
+	driftsource "github.com/somaz94/kube-drift/internal/source"
 
 	"github.com/somaz94/kube-diff/pkg/cluster"
 	"github.com/somaz94/kube-diff/pkg/diff"
@@ -41,6 +42,11 @@ type DriftCheckReconciler struct {
 	// Metrics records the per-DriftCheck drift gauges. It may be nil (methods
 	// are no-ops), so the controller runs fine without metrics wiring.
 	Metrics *metrics.Recorder
+
+	// GitCloner clones the repository for Git-source DriftChecks. It is
+	// injected so tests can stay offline; nil falls back to the real
+	// go-git-backed clone in internal/source.
+	GitCloner driftsource.CloneFunc
 }
 
 // +kubebuilder:rbac:groups=drift.somaz.io,resources=driftchecks,verbs=get;list;watch;create;update;patch;delete
@@ -83,18 +89,19 @@ func (r *DriftCheckReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	src, err := r.buildSource(ctx, &dc)
 	if err != nil {
-		// Source resolution failures (missing ConfigMap, bad key, unsupported
-		// Git source) are treated as non-fatal: record the condition and retry
-		// on the interval rather than hot-looping.
+		// Source resolution failures (missing ConfigMap, bad key, a Git source
+		// with no git block) are treated as non-fatal: record the condition and
+		// retry on the interval rather than hot-looping.
 		return r.permanentFail(ctx, &dc, interval, "SourceError", err)
 	}
 
 	results, err := engine.Run(ctx, src, r.Fetcher, diff.DefaultCompareOptions())
 	if err != nil {
-		// Comparison failures are typically transient (cluster API blips):
-		// record the condition (best effort) and return the error so
-		// controller-runtime retries with backoff instead of waiting a full
-		// interval, and so it surfaces in reconcile-error metrics.
+		// Comparison failures are typically transient (cluster API blips, a Git
+		// clone that timed out): record the condition (best effort) and return
+		// the error so controller-runtime retries with backoff instead of
+		// waiting a full interval, and so it surfaces in reconcile-error
+		// metrics.
 		_ = r.markNotReady(ctx, &dc, "CompareError", err)
 		return ctrl.Result{}, err
 	}
@@ -149,7 +156,16 @@ func (r *DriftCheckReconciler) buildSource(ctx context.Context, dc *driftv1alpha
 		}
 		return source.NewBytesSource(data), nil
 	case driftv1alpha1.SourceTypeGit:
-		return nil, fmt.Errorf("Git source is not supported yet")
+		g := dc.Spec.Source.Git
+		if g == nil {
+			return nil, fmt.Errorf("source.git is required when type is Git")
+		}
+		if g.URL == "" {
+			// The CRD marks url as required, but guard here too so a bad config
+			// surfaces as a permanent SourceError rather than looping on clone.
+			return nil, fmt.Errorf("source.git.url is required when type is Git")
+		}
+		return driftsource.NewGitSource(ctx, g.URL, g.Ref, g.Path, r.GitCloner), nil
 	default:
 		return nil, fmt.Errorf("unknown source type %q", dc.Spec.Source.Type)
 	}
