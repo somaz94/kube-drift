@@ -1,12 +1,10 @@
 name: E2E Tests
 
+# Gated to manual dispatch until the drift-detection controller and its
+# test/e2e suite land (Phase 2). The stub controller has no behavior to
+# exercise end-to-end yet; restore the push/pull_request triggers once a real
+# e2e suite (test/e2e + test/utils + metrics RBAC) exists.
 on:
-  push:
-    paths-ignore:
-      - '.github/workflows/**'
-      - '**/*.md'
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
 
 jobs:
