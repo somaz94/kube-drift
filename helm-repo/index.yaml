@@ -3,9 +3,9 @@ entries:
   kube-drift:
   - apiVersion: v2
     appVersion: v0.1.0
-    created: "2026-07-08T09:16:46.385499261Z"
+    created: "2026-07-08T09:35:17.913772967Z"
     description: A Helm chart for kube-drift controller
-    digest: a50c1759c6972d3ed18f095fe2f32a1f6d74c7aef0b5635cfbb5569d7b30c35b
+    digest: 5a8170058ef1dc21dc3963921729af4b1b8033fe90bb9367ecf49de303d4d583
     home: https://github.com/somaz94/kube-drift
     keywords:
     - kubernetes
@@ -22,4 +22,4 @@ entries:
     urls:
     - https://somaz94.github.io/kube-drift/helm-repo/kube-drift-0.1.0.tgz
     version: 0.1.0
-generated: "2026-07-08T09:16:46.385005428Z"
+generated: "2026-07-08T09:35:17.913280884Z"
