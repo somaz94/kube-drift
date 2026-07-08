@@ -43,4 +43,4 @@ commit_parsers = [
 
 [remote.github]
 owner = "somaz94"
-repo = "template-go-k8s-tool"
+repo = "kube-drift"
