@@ -3,7 +3,7 @@ module github.com/somaz94/kube-drift
 go 1.26.1
 
 require (
-	github.com/somaz94/kube-diff v0.0.0-00010101000000-000000000000
+	github.com/somaz94/kube-diff v0.5.0
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2
 	k8s.io/client-go v0.36.2
@@ -63,5 +63,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/somaz94/kube-diff => ../kube-diff
