@@ -86,6 +86,8 @@ helm install kube-drift ./helm/kube-drift \
 
 ## Usage
 
+> Full walkthrough — install, both source types, reading results, metrics, RBAC, and troubleshooting — in the **[Usage Guide](docs/USAGE.md)**.
+
 Create a `DriftCheck` that compares a set of desired manifests stored in a ConfigMap against the `default` namespace, re-checking every 5 minutes ([`config/samples/driftcheck_v1alpha1_sample.yaml`](config/samples/driftcheck_v1alpha1_sample.yaml)):
 
 ```yaml
@@ -113,6 +115,19 @@ spec:
 ```bash
 kubectl apply -f config/samples/driftcheck_v1alpha1_sample.yaml
 kubectl get driftchecks
+```
+
+Or point at a Git repository instead of a ConfigMap — cloned at `ref`, with plain YAML read from `path`:
+
+```yaml
+spec:
+  source:
+    type: Git
+    git:
+      url: https://github.com/somaz94/kube-drift.git   # anonymous clone (public repos only in v0.1)
+      ref: main                                        # branch, tag, or commit; omit for the default branch
+      path: config/samples                             # sub-directory holding the manifests; omit for the root
+  interval: 10m
 ```
 
 <br/>
@@ -203,6 +218,7 @@ This keeps the CLI and the operator behaviorally consistent: the same comparison
 ├── hack/                                    # boilerplate header, version bump
 ├── scripts/                                 # PR auto-generator
 ├── docs/
+│   ├── USAGE.md                             # Install, source types, results, metrics, RBAC
 │   └── DEVELOPMENT.md
 ├── Dockerfile                               # Multi-stage (golang → distroless:nonroot)
 ├── Makefile
