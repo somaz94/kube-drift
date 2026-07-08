@@ -1,0 +1,16 @@
+domain: somaz.io
+layout:
+- go.kubebuilder.io/v4
+projectName: kube-drift
+repo: github.com/somaz94/kube-drift
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: somaz.io
+  group: drift
+  kind: DriftCheck
+  path: github.com/somaz94/kube-drift/api/v1alpha1
+  version: v1alpha1
+version: "3"

@@ -1,0 +1,19 @@
+apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: driftcheck-sample
+  namespace: default
+spec:
+  # Desired-state manifests to compare against the live cluster.
+  source:
+    type: ConfigMap
+    configMap:
+      name: desired-manifests
+      # namespace: default    # defaults to the DriftCheck's namespace
+      # key: manifests.yaml    # omit to concatenate every key as a YAML stream
+  # Optionally narrow which resources are compared.
+  target:
+    namespaces:
+      - default
+  # How often to re-evaluate drift.
+  interval: 5m

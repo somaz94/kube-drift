@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - drift.somaz.io
+  resources:
+  - driftchecks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - drift.somaz.io
+  resources:
+  - driftchecks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - drift.somaz.io
+  resources:
+  - driftchecks/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -1,0 +1,11 @@
+namespace: kube-drift-system
+
+namePrefix: kube-drift-
+
+resources:
+- ../crd
+- ../rbac
+- ../manager
+
+patches:
+- path: manager_metrics_patch.yaml

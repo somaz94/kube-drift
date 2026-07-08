@@ -1,0 +1,44 @@
+# Default values for kube-drift.
+replicaCount: 1
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Namespace where the controller will be installed
+namespace: kube-drift-system
+
+image:
+  repository: somaz940/kube-drift
+  pullPolicy: IfNotPresent
+  tag: "v0.1.0"
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: "kube-drift-controller-manager"
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

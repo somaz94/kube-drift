@@ -1,0 +1,25 @@
+apiVersion: v2
+name: kube-drift
+description: A Helm chart for kube-drift controller
+type: application
+version: 0.1.0
+appVersion: "v0.1.0"
+
+# Dependencies and requirements
+kubeVersion: ">=1.16.0-0"
+
+# Keywords and categories for documentation
+keywords:
+  - kubernetes
+  - controller
+  - operator
+
+# Home page, sources, and documentation
+home: https://github.com/somaz94/kube-drift
+sources:
+  - https://github.com/somaz94/kube-drift
+
+# Maintainer information
+maintainers:
+  - name: somaz94
+    url: https://github.com/somaz94

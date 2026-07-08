@@ -1,0 +1,2 @@
+resources:
+- bases/drift.somaz.io_driftchecks.yaml
