@@ -109,6 +109,11 @@ spec:
                 required:
                 - type
                 type: object
+                x-kubernetes-validations:
+                - message: configMap is required when type is ConfigMap
+                  rule: self.type != 'ConfigMap' || has(self.configMap)
+                - message: git is required when type is Git
+                  rule: self.type != 'Git' || has(self.git)
               target:
                 description: Target narrows which resources are compared.
                 properties:
@@ -230,6 +235,9 @@ spec:
                   - type
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
               driftedResources:
                 description: |-
                   DriftedResources lists resources whose live state differs from desired.

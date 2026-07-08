@@ -45,6 +45,8 @@ type ConfigMapSource struct {
 }
 
 // Source describes the desired-state manifests to compare against the cluster.
+// +kubebuilder:validation:XValidation:rule="self.type != 'ConfigMap' || has(self.configMap)",message="configMap is required when type is ConfigMap"
+// +kubebuilder:validation:XValidation:rule="self.type != 'Git' || has(self.git)",message="git is required when type is Git"
 type Source struct {
 	// Type selects the source backend.
 	Type SourceType `json:"type"`
@@ -125,7 +127,11 @@ type DriftCheckStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
 	// Conditions represent the latest available observations.
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// +patchStrategy=merge
+	// +patchMergeKey=type
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // +kubebuilder:object:root=true

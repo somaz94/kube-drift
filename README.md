@@ -8,7 +8,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/somaz94/kube-drift)](https://goreportcard.com/report/github.com/somaz94/kube-drift)
 ![GitHub Stars](https://img.shields.io/github/stars/somaz94/kube-drift?style=social)
 
-> **Status: early development (v0.1.0 — WIP).** The `DriftCheck` CRD and the operator skeleton exist, install, and run, but the drift-detection reconcile logic is **not implemented yet**. The controller is currently a stub that will be wired to the `kube-diff` comparison engine in the next phase. See [Roadmap](#roadmap) before depending on this.
+> **Status: early development (v0.1.0 — WIP).** The `DriftCheck` CRD, the operator, and drift detection for **`ConfigMap` sources** are implemented: the controller loads the desired manifests, compares them against the live cluster via the `kube-diff` engine, and records the result into `status`. Still pending: **`Git` sources**, a broader read-RBAC story for arbitrary compared kinds, and the end-to-end test suite. See [Roadmap](#roadmap) before depending on this.
 
 <br/>
 
@@ -36,7 +36,7 @@ Where `kube-diff` answers "does the cluster match this directory of YAML right n
 - **Structured status** — per-resource drift entries plus a rolled-up summary (changed / new / deleted / unchanged), `lastCheckedAt`, `observedGeneration`, and standard conditions
 - **Shared engine** — reuses the comparison engine extracted from `kube-diff`, so CLI and operator produce consistent results
 
-> Source-backend maturity: **v0.1 targets `ConfigMap` sources first; `Git` sources come later.** The reconcile logic that populates status is the Phase 2 work item — see [Roadmap](#roadmap).
+> Source-backend maturity: **`ConfigMap` sources are implemented; `Git` sources come later** (a `DriftCheck` with `source.type: Git` is rejected with a `SourceError` condition for now) — see [Roadmap](#roadmap).
 
 <br/>
 
@@ -152,9 +152,10 @@ Per-resource `status` values: `unchanged`, `changed`, `new`, `deleted`.
 
 - [x] `DriftCheck` CRD (`drift.somaz.io/v1alpha1`) — spec, status, printer columns
 - [x] Operator skeleton — manager, RBAC, Kustomize overlays, Helm chart, CI/CD
-- [ ] **Phase 2** — wire the reconcile loop to the `kube-diff` engine (`engine.Compare`), starting with `ConfigMap` sources
+- [x] Reconcile loop wired to the `kube-diff` engine (`engine.Run`) for `ConfigMap` sources — drift recorded into `status`
 - [ ] `Git` source backend
-- [ ] End-to-end test suite (currently gated to manual dispatch until real behavior exists)
+- [ ] Read-RBAC story for comparing arbitrary resource kinds (currently only `configmaps` is declared; broader read is granted at install time)
+- [ ] End-to-end test suite + restore `test-e2e.yml` to push/PR triggers
 
 <br/>
 

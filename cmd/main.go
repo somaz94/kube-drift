@@ -13,6 +13,8 @@ import (
 
 	myv1 "github.com/somaz94/kube-drift/api/v1alpha1"
 	"github.com/somaz94/kube-drift/internal/controller"
+
+	"github.com/somaz94/kube-diff/pkg/cluster"
 )
 
 var (
@@ -58,9 +60,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Build the kube-diff cluster fetcher from the manager's REST config so the
+	// controller can read live cluster state for comparison.
+	fetcher, err := cluster.NewFetcherFromConfig(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "unable to build cluster fetcher")
+		os.Exit(1)
+	}
+
 	if err = (&controller.DriftCheckReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Fetcher: fetcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DriftCheck")
 		os.Exit(1)
