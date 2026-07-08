@@ -8,6 +8,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	driftv1alpha1 "github.com/somaz94/kube-drift/api/v1alpha1"
+	"github.com/somaz94/kube-drift/internal/metrics"
 
 	"github.com/somaz94/kube-diff/pkg/cluster"
 	"github.com/somaz94/kube-diff/pkg/diff"
@@ -35,6 +37,10 @@ type DriftCheckReconciler struct {
 	// tests can supply a fake; in-cluster it is built from the manager's
 	// rest.Config via cluster.NewFetcherFromConfig (see cmd/main.go).
 	Fetcher cluster.ResourceFetcher
+
+	// Metrics records the per-DriftCheck drift gauges. It may be nil (methods
+	// are no-ops), so the controller runs fine without metrics wiring.
+	Metrics *metrics.Recorder
 }
 
 // +kubebuilder:rbac:groups=drift.somaz.io,resources=driftchecks,verbs=get;list;watch;create;update;patch;delete
@@ -56,7 +62,13 @@ func (r *DriftCheckReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	var dc driftv1alpha1.DriftCheck
 	if err := r.Get(ctx, req.NamespacedName, &dc); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		if apierrors.IsNotFound(err) {
+			// The DriftCheck is gone: drop its metric series so stale gauges
+			// do not linger in the registry.
+			r.Metrics.Delete(req.Name, req.Namespace)
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
 	}
 
 	interval := dc.Spec.Interval.Duration
@@ -103,6 +115,10 @@ func (r *DriftCheckReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err := r.Status().Update(ctx, &dc); err != nil {
 		return ctrl.Result{}, err
 	}
+
+	r.Metrics.RecordDrift(dc.Name, dc.Namespace,
+		dc.Status.Summary.Changed, dc.Status.Summary.New,
+		dc.Status.Summary.Deleted, dc.Status.Summary.Unchanged)
 
 	logger.Info("drift evaluated", "name", dc.Name,
 		"changed", dc.Status.Summary.Changed,
@@ -231,7 +247,14 @@ func (r *DriftCheckReconciler) markNotReady(ctx context.Context, dc *driftv1alph
 // requeues after the interval. If the status write itself fails (e.g. a
 // conflict), the error is returned so controller-runtime retries promptly
 // instead of losing the condition until the next interval.
+//
+// It also clears the drift gauges: a persistent failure (missing source,
+// unsupported/unknown type, no fetcher) means there is no valid drift reading,
+// so a stale last-known-good count must not linger in the metrics. Transient
+// compare failures take the markNotReady path instead and keep the last gauge
+// while controller-runtime retries with backoff.
 func (r *DriftCheckReconciler) permanentFail(ctx context.Context, dc *driftv1alpha1.DriftCheck, interval time.Duration, reason string, cause error) (ctrl.Result, error) {
+	r.Metrics.Delete(dc.Name, dc.Namespace)
 	if err := r.markNotReady(ctx, dc, reason, cause); err != nil {
 		return ctrl.Result{}, err
 	}

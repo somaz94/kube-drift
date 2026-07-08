@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	myv1 "github.com/somaz94/kube-drift/api/v1alpha1"
+	"github.com/somaz94/kube-drift/internal/metrics"
 )
 
 // fakeFetcher implements kube-diff's cluster.ResourceFetcher. A resource keyed
@@ -76,7 +77,7 @@ func reconcilerFor(scheme *runtime.Scheme, fetcher *fakeFetcher, objs ...client.
 		WithObjects(objs...).
 		WithStatusSubresource(&myv1.DriftCheck{}).
 		Build()
-	return &DriftCheckReconciler{Client: cl, Scheme: scheme, Fetcher: fetcher}
+	return &DriftCheckReconciler{Client: cl, Scheme: scheme, Fetcher: fetcher, Metrics: metrics.NewRecorder()}
 }
 
 func TestReconcile_MissingConfigMap_SetsNotReady(t *testing.T) {
