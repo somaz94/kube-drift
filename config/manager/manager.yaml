@@ -23,7 +23,10 @@ spec:
         runAsNonRoot: true
       containers:
       - name: manager
-        image: somaz940/kube-drift:latest
+        # Placeholder replaced at deploy time by `kustomize edit set image
+        # controller=<IMG>` (see the Makefile deploy/build-installer targets and
+        # the images: field in this directory's kustomization.yaml).
+        image: controller:latest
         command:
         - /manager
         args:
