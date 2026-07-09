@@ -30,6 +30,22 @@ serviceAccount:
 # RBAC (ClusterRole/Role and their bindings) creation.
 rbac:
   create: true
+  # Bind the controller ServiceAccount to the built-in `view` ClusterRole so it
+  # can read arbitrary resource kinds for drift comparison. `view` is read-only
+  # and excludes Secrets and RBAC objects by design. Off by default — the
+  # controller ships with read access to `configmaps` only.
+  viewRole:
+    enabled: false
+  # Extra read rules granted to the controller ServiceAccount for comparing
+  # additional kinds not covered by `configmaps` or the `view` role above. When
+  # non-empty, a dedicated ClusterRole (+ binding) is created. Use read verbs
+  # only (get/list/watch) — the controller never writes to compared resources.
+  # Each entry is a standard RBAC policy rule, e.g.:
+  #   extraRules:
+  #     - apiGroups: ["apps"]
+  #       resources: ["deployments", "statefulsets"]
+  #       verbs: ["get", "list", "watch"]
+  extraRules: []
 
 # Leader election for HA controller deployments.
 leaderElection:

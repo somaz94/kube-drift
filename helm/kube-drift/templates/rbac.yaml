@@ -180,4 +180,51 @@ rules:
   verbs:
   - get
 {{- end }}
+{{- if .Values.rbac.viewRole.enabled }}
+---
+# Broad read access for drift comparison, granted by binding the controller
+# ServiceAccount to the built-in `view` ClusterRole (read-only; excludes Secrets
+# and RBAC objects). Enable with `rbac.viewRole.enabled=true`.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kube-drift.fullname" . }}-view
+  labels:
+    {{- include "kube-drift.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: ServiceAccount
+  name: {{ include "kube-drift.serviceAccountName" . }}
+  namespace: {{ include "kube-drift.namespace" . }}
+{{- end }}
+{{- with .Values.rbac.extraRules }}
+---
+# Extra read rules for comparing additional resource kinds (rbac.extraRules).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kube-drift.fullname" $ }}-read
+  labels:
+    {{- include "kube-drift.labels" $ | nindent 4 }}
+rules:
+  {{- toYaml . | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kube-drift.fullname" $ }}-read
+  labels:
+    {{- include "kube-drift.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "kube-drift.fullname" $ }}-read
+subjects:
+- kind: ServiceAccount
+  name: {{ include "kube-drift.serviceAccountName" $ }}
+  namespace: {{ include "kube-drift.namespace" $ }}
+{{- end }}
 {{- end }}
