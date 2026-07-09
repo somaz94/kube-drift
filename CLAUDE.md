@@ -2,7 +2,7 @@
 
 Kubernetes operator that detects configuration drift between desired-state manifests and the live cluster on a schedule. The in-cluster counterpart to the `kube-diff` CLI. Kubebuilder v4 project (controller-runtime).
 
-> **Maturity**: working operator (v0.1.x released; v0.3 features on `main`). Drift detection runs against `ConfigMap`, `Git`, `Helm`, and `Kustomize` sources, records results into `status`, exposes Prometheus metrics, and sends webhook notifications. Git clones are anonymous by default; private repos are supported via `source.git.auth` (Basic/Bearer/SSH, go-git, credentials from a Secret in the DriftCheck's namespace).
+> **Maturity**: working operator (v0.1.x released; v0.4 features on `main`). Drift detection runs against `ConfigMap`, `Git`, `Helm`, and `Kustomize` sources, records results into `status`, exposes Prometheus metrics, and sends webhook notifications. Git clones are anonymous by default; private repos are supported via `source.git.auth` (Basic/Bearer/SSH, go-git, credentials from a Secret in the DriftCheck's namespace). Broader read RBAC for comparing arbitrary kinds is opt-in via the Helm chart's `rbac.viewRole.enabled` / `rbac.extraRules` knobs (off by default; controller ships with `configmaps` read only). The `source.helm.dependencyBuild` CRD field (default false) fetches declared-but-unvendored Helm dependencies over the network at render time; vendored `charts/` is the default.
 
 <br/>
 
@@ -53,7 +53,7 @@ hack/                              # boilerplate.go.txt, bump-version.sh
 ## Key Concepts
 
 - **CRD**: `DriftCheck` (apiGroup `drift.somaz.io`, version `v1alpha1`).
-  - `spec.source` — `{ type: Git|ConfigMap|Helm|Kustomize, git, configMap, helm, kustomize }`. `Helm`/`Kustomize` source their files from a nested `git` block and render in-process. `spec.notify.webhooks[]` (Slack/Generic, url or urlSecretRef) sends a message when the drift state changes (deduped via `status.lastNotifiedHash`).
+  - `spec.source` — `{ type: Git|ConfigMap|Helm|Kustomize, git, configMap, helm, kustomize }`. `Helm`/`Kustomize` source their files from a nested `git` block and render in-process. `source.helm.dependencyBuild` (bool, default false) fetches declared-but-unvendored Helm dependencies over the network before rendering. `spec.notify.webhooks[]` (Slack/Generic, url or urlSecretRef) sends a message when the drift state changes (deduped via `status.lastNotifiedHash`).
   - `spec.target` — `{ namespaces: [], labelSelector: {} }` — narrows which live resources are compared.
   - `spec.interval` — re-evaluation cadence (default `5m`).
   - `status` — `lastCheckedAt`, `driftedResources[]` ({apiVersion,kind,name,namespace,status}), `summary` {changed,new,deleted,unchanged}, `observedGeneration`, `lastNotifiedHash`, `conditions`.

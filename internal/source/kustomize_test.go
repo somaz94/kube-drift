@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -52,6 +53,28 @@ func TestRenderKustomize_OverlayReferencingBase(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "name: prod-config") {
 		t.Errorf("overlay/base build did not apply namePrefix: %s", out)
+	}
+}
+
+func TestKustomizeSource_NilClonerDefaultsToGitClone(t *testing.T) {
+	// clone=nil → withCheckout falls back to the real gitClone. A non-existent
+	// local path fails PlainClone immediately, exercising that fallback and the
+	// clone-error wrapping without any network access.
+	k := NewKustomizeSource(context.Background(), filepath.Join(t.TempDir(), "nope"), "", "", nil, nil)
+	if _, err := k.Load(); err == nil {
+		t.Fatal("expected a clone error for a non-existent repo path, got nil")
+	}
+}
+
+func TestKustomizeSource_LoadError(t *testing.T) {
+	// The checkout has files but no kustomization.yaml, so renderKustomize
+	// (krusty.Run) fails and Load surfaces the error.
+	clone := func(_ context.Context, dir, _, _ string, _ *GitAuth) error {
+		return os.WriteFile(filepath.Join(dir, "x.yaml"), []byte("kind: X\napiVersion: v1\n"), 0o644)
+	}
+	k := NewKustomizeSource(context.Background(), "u", "", "", nil, clone)
+	if _, err := k.Load(); err == nil {
+		t.Fatal("expected error when no kustomization.yaml is present, got nil")
 	}
 }
 

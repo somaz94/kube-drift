@@ -212,7 +212,7 @@ func (r *DriftCheckReconciler) buildSource(ctx context.Context, dc *driftv1alpha
 			return nil, err
 		}
 		return driftsource.NewHelmSource(ctx, h.Git.URL, h.Git.Ref, h.Git.Path,
-			releaseName, namespace, values, h.ValuesFiles, auth, r.GitCloner), nil
+			releaseName, namespace, values, h.ValuesFiles, h.DependencyBuild, auth, r.GitCloner), nil
 	case driftv1alpha1.SourceTypeKustomize:
 		k := dc.Spec.Source.Kustomize
 		if k == nil {

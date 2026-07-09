@@ -117,9 +117,29 @@ func TestAuthMethod_SSHMissingKnownHosts(t *testing.T) {
 	}
 }
 
+func TestKnownHostsCallback_BadParse(t *testing.T) {
+	// Non-empty but malformed known_hosts content fails to parse (it is not an
+	// empty-input case, which is handled separately by the fail-closed guard).
+	if _, err := knownHostsCallback([]byte("this is not a valid known_hosts entry\n")); err == nil {
+		t.Fatal("expected parse error for malformed known_hosts, got nil")
+	}
+}
+
 func TestAuthMethod_SSHBadKey(t *testing.T) {
 	if _, err := authMethod(&GitAuth{SSH: &SSHAuth{PrivateKey: []byte("not a private key"), KnownHosts: testKnownHosts(t)}}); err == nil {
 		t.Fatal("expected error for an unparseable SSH key, got nil")
+	}
+}
+
+// TestGitClone_AuthMethodError drives the real gitClone (nil cloner) with SSH
+// auth that fails authMethod (fail-closed: no known_hosts). authMethod errors
+// before any network access, exercising gitClone's auth-error path and
+// withCheckout's clone-error wrapping offline.
+func TestGitClone_AuthMethodError(t *testing.T) {
+	auth := &GitAuth{SSH: &SSHAuth{PrivateKey: testSSHKeyPEM(t)}} // no KnownHosts → fail-closed
+	src := NewGitSource(context.Background(), "https://example.com/repo.git", "", "", auth, nil)
+	if _, err := src.Load(); err == nil {
+		t.Fatal("expected an auth error before clone, got nil")
 	}
 }
 

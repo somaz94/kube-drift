@@ -297,7 +297,25 @@ spec:
 
 - Values precedence: chart defaults → `valuesFiles` (in order) → inline `values`.
 - Rendering uses the Helm SDK render engine; `NOTES.txt` and template partials (`_*.tpl`) are excluded, matching `helm template`.
-- The chart must be **self-contained** — chart dependencies must be vendored under `charts/` (there is no `helm dependency update` step).
+- By default the chart must be **self-contained** — chart dependencies are expected to be vendored under `charts/`. This is the reproducible, GitOps-idiomatic default.
+
+For a chart whose dependencies are declared in `Chart.yaml` but not vendored, set `source.helm.dependencyBuild: true` to fetch them into `charts/` before rendering (using the Helm SDK in-process, no shell-out):
+
+```yaml
+spec:
+  source:
+    type: Helm
+    helm:
+      git:
+        url: https://github.com/example/charts.git
+        ref: main
+        path: charts/myapp
+      dependencyBuild: true        # fetch declared-but-unvendored dependencies before rendering
+  interval: 10m
+```
+
+- Default is `false`. Enabling it makes the controller reach each dependency's repository **over the network on every render**, so the dependency repositories must be HTTP(S) URLs reachable from the pod.
+- Named `@alias` repositories are **not** supported; `oci://` dependency URLs are resolved natively.
 
 <br/>
 
@@ -370,7 +388,26 @@ The `status` label is one of `changed` / `new` / `deleted` / `unchanged`. The me
 
 ## RBAC for non-ConfigMap kinds
 
-The controller only declares read access to `configmaps` by default. To compare other kinds (Deployments, Services, …), the operator's ServiceAccount needs read access to them. The simplest grant is the built-in `view` ClusterRole:
+The controller only declares read access to `configmaps` by default. To compare other kinds (Deployments, Services, …), the operator's ServiceAccount needs read access to them.
+
+**Helm install (recommended).** The chart exposes two opt-in RBAC knobs, both off by default:
+
+- `rbac.viewRole.enabled=true` binds the controller ServiceAccount to the built-in Kubernetes `view` ClusterRole — broad read access for comparing arbitrary kinds. `view` is read-only and excludes Secrets and RBAC objects by design.
+- `rbac.extraRules` takes a list of standard RBAC policy rules; when non-empty, a dedicated read-only ClusterRole (+ binding) is created. Use read verbs only (`get`/`list`/`watch`).
+
+```bash
+# Bind the built-in view ClusterRole:
+helm install kube-drift ./helm/kube-drift \
+  --namespace kube-drift-system --create-namespace \
+  --set rbac.viewRole.enabled=true
+
+# Or grant a scoped, custom read-only rule (preferred for production):
+helm install kube-drift ./helm/kube-drift \
+  --namespace kube-drift-system --create-namespace \
+  --set-json 'rbac.extraRules=[{"apiGroups":["apps"],"resources":["deployments"],"verbs":["get","list","watch"]}]'
+```
+
+**Kustomize install (fallback).** The chart knobs are not available on the `make deploy` path; grant access manually. The simplest grant is the built-in `view` ClusterRole:
 
 ```bash
 kubectl create clusterrolebinding kube-drift-view \
@@ -378,7 +415,7 @@ kubectl create clusterrolebinding kube-drift-view \
   --serviceaccount=kube-drift-system:kube-drift-controller-manager
 ```
 
-Scope this down to specific kinds with a purpose-built ClusterRole for production. A broader read story is on the roadmap.
+Scope this down to specific kinds with a purpose-built ClusterRole for production.
 
 <br/>
 
@@ -451,6 +488,6 @@ kubectl -n kube-drift-system logs deploy/kube-drift-controller-manager -f
 
 ## Limitations
 
-- **Git private repos via `auth` only** — the top-level Git / Helm / Kustomize clone supports private repositories through `source.git.auth` (Basic / Bearer / SSH); without `auth` the clone is anonymous. Remote Kustomize bases and un-vendored Helm chart dependencies are still fetched anonymously.
-- **Self-contained Helm charts** — chart dependencies must be vendored under `charts/` (no `helm dependency update` step).
-- **ConfigMap read RBAC by default** — comparing other kinds requires granting read access at install time (see [RBAC](#rbac-for-non-configmap-kinds)).
+- **Git private repos via `auth` only** — the top-level Git / Helm / Kustomize clone supports private repositories through `source.git.auth` (Basic / Bearer / SSH); without `auth` the clone is anonymous. Remote Kustomize bases and Helm dependencies fetched via `dependencyBuild` are still retrieved anonymously.
+- **Self-contained Helm charts by default** — chart dependencies are expected to be vendored under `charts/`. Charts with external dependencies can opt into `source.helm.dependencyBuild: true`, which fetches them at render time over the network (HTTP(S) or `oci://` repositories only; named `@alias` repos are unsupported).
+- **ConfigMap read RBAC by default** — comparing other kinds requires granting read access, via the chart's `rbac.viewRole` / `rbac.extraRules` knobs (Helm) or a manual ClusterRoleBinding (Kustomize) (see [RBAC](#rbac-for-non-configmap-kinds)).

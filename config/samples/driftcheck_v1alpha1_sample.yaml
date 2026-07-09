@@ -33,6 +33,8 @@ spec:
     #   releaseName: myapp                               # defaults to the DriftCheck name
     #   valuesFiles: [values-prod.yaml]                  # relative to the chart dir, merged in order
     #   values: { replicaCount: 3 }                      # inline overrides, applied last
+    #   dependencyBuild: true                            # fetch declared-but-unvendored deps over the network
+    #                                                     # (default false; vendored charts/ is the reproducible default)
     # --- Or build a Kustomize overlay from a Git repository in-process: ---
     # type: Kustomize
     # kustomize:
