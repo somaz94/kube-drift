@@ -103,27 +103,25 @@ docker-push: ## Push docker image with the manager.
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 .PHONY: docker-buildx-tag
 docker-buildx-tag: ## Build and push docker image for cross-platform support with specific version
-	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
+	# The Dockerfile pins the builder to --platform=$$BUILDPLATFORM and cross-
+	# compiles via GOARCH, so no Dockerfile.cross rewrite is needed.
 	- $(CONTAINER_TOOL) buildx create --name project-builder
 	$(CONTAINER_TOOL) buildx use project-builder
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) \
 		$(DOCKER_BUILD_ARGS) \
 		--tag ${IMG} \
-		-f Dockerfile.cross .
+		-f Dockerfile .
 	- $(CONTAINER_TOOL) buildx rm project-builder
-	rm Dockerfile.cross
 
 .PHONY: docker-buildx-latest
 docker-buildx-latest: ## Build and push docker image for cross-platform support with latest tag
-	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name project-builder
 	$(CONTAINER_TOOL) buildx use project-builder
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) \
 		$(DOCKER_BUILD_ARGS) \
 		--tag $(shell echo ${IMG} | cut -f1 -d:):latest \
-		-f Dockerfile.cross .
+		-f Dockerfile .
 	- $(CONTAINER_TOOL) buildx rm project-builder
-	rm Dockerfile.cross
 
 .PHONY: docker-buildx
 docker-buildx: ## Build and push both version-specific and latest tags
