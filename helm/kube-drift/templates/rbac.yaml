@@ -1,0 +1,170 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kube-drift.fullname" . }}-manager-role
+  labels:
+    {{- include "kube-drift.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - drift.somaz.io
+  resources:
+  - driftchecks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - drift.somaz.io
+  resources:
+  - driftchecks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - drift.somaz.io
+  resources:
+  - driftchecks/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kube-drift.fullname" . }}-manager-rolebinding
+  labels:
+    {{- include "kube-drift.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "kube-drift.fullname" . }}-manager-role
+subjects:
+- kind: ServiceAccount
+  name: {{ include "kube-drift.serviceAccountName" . }}
+  namespace: {{ include "kube-drift.namespace" . }}
+{{- if .Values.leaderElection.enabled }}
+---
+# Permissions to do leader election.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "kube-drift.fullname" . }}-leader-election-role
+  namespace: {{ include "kube-drift.namespace" . }}
+  labels:
+    {{- include "kube-drift.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "kube-drift.fullname" . }}-leader-election-rolebinding
+  namespace: {{ include "kube-drift.namespace" . }}
+  labels:
+    {{- include "kube-drift.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "kube-drift.fullname" . }}-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: {{ include "kube-drift.serviceAccountName" . }}
+  namespace: {{ include "kube-drift.namespace" . }}
+{{- end }}
+{{- if and .Values.metrics.enabled .Values.metrics.secure }}
+---
+# Permissions for the metrics endpoint to authenticate/authorize scrapers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kube-drift.fullname" . }}-metrics-auth-role
+  labels:
+    {{- include "kube-drift.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kube-drift.fullname" . }}-metrics-auth-rolebinding
+  labels:
+    {{- include "kube-drift.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "kube-drift.fullname" . }}-metrics-auth-role
+subjects:
+- kind: ServiceAccount
+  name: {{ include "kube-drift.serviceAccountName" . }}
+  namespace: {{ include "kube-drift.namespace" . }}
+---
+# Allows scrapers holding this role to read the /metrics endpoint.
+# Unbound by design — bind it from your metrics scraper's ServiceAccount
+# (e.g. Prometheus) as needed.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kube-drift.fullname" . }}-metrics-reader
+  labels:
+    {{- include "kube-drift.labels" . | nindent 4 }}
+rules:
+- nonResourceURLs:
+  - "/metrics"
+  verbs:
+  - get
+{{- end }}
+{{- end }}

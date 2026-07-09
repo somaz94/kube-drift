@@ -4,26 +4,62 @@ replicaCount: 1
 nameOverride: ""
 fullnameOverride: ""
 
-# Namespace where the controller will be installed
-namespace: kube-drift-system
+# Target namespace override for the controller and its namespaced resources.
+# Empty = use the release namespace (the `-n` flag). Set this only to pin a fixed
+# namespace regardless of the release namespace.
+namespace: ""
+# Create the target namespace as part of the release. Leave false when installing
+# with `helm install --create-namespace` (the documented path) to avoid an
+# ownership conflict on the namespace object.
+namespaceCreate: false
 
 image:
   repository: somaz940/kube-drift
   pullPolicy: IfNotPresent
-  tag: "v0.1.0"
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
 
 imagePullSecrets: []
 
 serviceAccount:
   create: true
-  name: "kube-drift-controller-manager"
+  # Empty = derived as <fullname>-controller-manager (release-scoped).
+  name: ""
   annotations: {}
+
+# RBAC (ClusterRole/Role and their bindings) creation.
+rbac:
+  create: true
+
+# Leader election for HA controller deployments.
+leaderElection:
+  enabled: true
+
+# Controller manager metrics endpoint.
+metrics:
+  enabled: true
+  # Serve metrics over HTTPS with authn/authz (recommended). Set false for HTTP.
+  secure: true
+  port: 8443
+  service:
+    type: ClusterIP
+
+# Health / readiness probe endpoint.
+health:
+  port: 8081
+
+# Extra args appended to the manager container command.
+extraArgs: []
+
+terminationGracePeriodSeconds: 10
 
 podAnnotations: {}
 podLabels: {}
 
 podSecurityContext:
   runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
 
 securityContext:
   allowPrivilegeEscalation: false
