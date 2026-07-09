@@ -17,6 +17,7 @@ import (
 	myv1 "github.com/somaz94/kube-drift/api/v1alpha1"
 	"github.com/somaz94/kube-drift/internal/controller"
 	"github.com/somaz94/kube-drift/internal/metrics"
+	"github.com/somaz94/kube-drift/internal/notify"
 
 	"github.com/somaz94/kube-diff/pkg/cluster"
 )
@@ -102,10 +103,12 @@ func main() {
 	}
 
 	if err = (&controller.DriftCheckReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		Fetcher: fetcher,
-		Metrics: metrics.NewRecorder(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Fetcher:  fetcher,
+		Metrics:  metrics.NewRecorder(),
+		Notifier: notify.NewSender(),
+		Recorder: mgr.GetEventRecorderFor("driftcheck-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DriftCheck")
 		os.Exit(1)

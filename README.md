@@ -27,6 +27,7 @@ Where `kube-diff` answers "does the cluster match this directory of YAML right n
 ![Git Source](https://img.shields.io/badge/Git_Source-F05032?logo=git&logoColor=white)
 ![Scheduled Reconcile](https://img.shields.io/badge/Scheduled_Reconcile-green?logo=kubernetes&logoColor=white)
 ![Status Reporting](https://img.shields.io/badge/Status_Reporting-green?logo=kubernetes&logoColor=white)
+![Webhook Alerts](https://img.shields.io/badge/Webhook_Alerts-4A154B?logo=slack&logoColor=white)
 ![Kubebuilder](https://img.shields.io/badge/Kubebuilder_v4-teal?logo=kubernetes&logoColor=white)
 
 - **`DriftCheck` CRD** (`drift.somaz.io/v1alpha1`) — declarative drift checks, one per desired-state source
@@ -34,6 +35,7 @@ Where `kube-diff` answers "does the cluster match this directory of YAML right n
 - **Scoped comparison** — narrow which live resources are compared via `target.namespaces` and `target.labelSelector`
 - **Scheduled re-evaluation** — configurable `interval` (default `5m`) for continuous drift detection
 - **Structured status** — per-resource drift entries plus a rolled-up summary (changed / new / deleted / unchanged), `lastCheckedAt`, `observedGeneration`, and standard conditions
+- **Webhook notifications** — Slack or generic-JSON webhooks fire when the drift state changes (detected or resolved), deduplicated so they don't repeat on every re-check; the URL can come from a `Secret`
 - **Shared engine** — reuses the comparison engine extracted from `kube-diff`, so CLI and operator produce consistent results
 
 > Source-backend maturity: both **`ConfigMap` and `Git` sources** are implemented. Git clones **anonymously** for now (no credential support yet), so only publicly cloneable repositories work in v0.1 — see [Roadmap](#roadmap).
@@ -170,8 +172,10 @@ Per-resource `status` values: `unchanged`, `changed`, `new`, `deleted`.
 - [x] Reconcile loop wired to the `kube-diff` engine (`engine.Run`) — drift recorded into `status`
 - [x] `ConfigMap` source backend
 - [x] `Git` source backend — clone a repo at `ref`, load plain YAML from `path` (anonymous clone; go-git, no shell-out)
+- [x] Webhook notifications — Slack / generic-JSON, deduplicated on drift-state change, URL sourced from a `Secret`
 - [x] End-to-end test suite + `test-e2e.yml` on push/PR via [`kind-e2e-test-action`](https://github.com/somaz94/kind-e2e-test-action)
 - [ ] Git credential support for private repositories
+- [ ] Helm chart / Kustomize base sources (in-process rendering)
 - [ ] Read-RBAC story for comparing arbitrary resource kinds (currently only `configmaps` is declared; broader read is granted at install time)
 
 <br/>

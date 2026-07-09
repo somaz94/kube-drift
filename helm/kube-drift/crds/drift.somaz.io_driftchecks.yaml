@@ -56,6 +56,57 @@ spec:
                 default: 5m
                 description: Interval is how often the drift check is re-evaluated.
                 type: string
+              notify:
+                description: Notify configures drift notifications. When unset, no
+                  webhooks are called.
+                properties:
+                  webhooks:
+                    description: Webhooks receive a notification whenever the drift
+                      state changes.
+                    items:
+                      description: Webhook is a single notification endpoint.
+                      properties:
+                        type:
+                          default: Generic
+                          description: |-
+                            Type selects the payload format. Slack posts a {"text": ...} message;
+                            Generic posts a structured JSON body.
+                          enum:
+                          - Slack
+                          - Generic
+                          type: string
+                        url:
+                          description: |-
+                            URL is the webhook endpoint. Prefer URLSecretRef for secret URLs such as
+                            Slack incoming webhooks.
+                          type: string
+                        urlSecretRef:
+                          description: |-
+                            URLSecretRef sources the webhook URL from a Secret in the DriftCheck's
+                            namespace. It takes precedence over URL when both are set.
+                          properties:
+                            key:
+                              description: Key selects the entry within the Secret
+                                holding the value.
+                              minLength: 1
+                              type: string
+                            name:
+                              description: Name of the Secret.
+                              minLength: 1
+                              type: string
+                          required:
+                          - key
+                          - name
+                          type: object
+                      type: object
+                      x-kubernetes-validations:
+                      - message: one of url or urlSecretRef is required
+                        rule: has(self.url) || has(self.urlSecretRef)
+                    minItems: 1
+                    type: array
+                required:
+                - webhooks
+                type: object
               source:
                 description: Source is where the desired-state manifests come from.
                 properties:
@@ -273,6 +324,12 @@ spec:
               lastCheckedAt:
                 description: LastCheckedAt is when the drift check last completed.
                 format: date-time
+                type: string
+              lastNotifiedHash:
+                description: |-
+                  LastNotifiedHash fingerprints the drift set last delivered to the
+                  configured webhooks. It prevents re-notifying on every re-check while the
+                  drift state is unchanged; it is empty until the first notification.
                 type: string
               observedGeneration:
                 description: ObservedGeneration is the .metadata.generation last reconciled.

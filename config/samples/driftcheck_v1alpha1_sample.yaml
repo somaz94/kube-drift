@@ -23,3 +23,14 @@ spec:
       - default
   # How often to re-evaluate drift.
   interval: 5m
+  # Optionally notify when the drift state changes (detected or resolved).
+  # A message is sent only when the set of drifted resources changes — not on
+  # every re-check.
+  # notify:
+  #   webhooks:
+  #     - type: Slack                     # {"text": ...} incoming-webhook payload
+  #       urlSecretRef:                   # prefer a Secret for the webhook URL
+  #         name: slack-webhook
+  #         key: url
+  #     - type: Generic                   # structured JSON body
+  #       url: http://alertmanager-webhook.monitoring.svc/drift

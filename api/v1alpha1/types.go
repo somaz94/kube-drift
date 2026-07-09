@@ -58,6 +58,54 @@ type Source struct {
 	ConfigMap *ConfigMapSource `json:"configMap,omitempty"`
 }
 
+// WebhookType selects the payload format posted to a notification webhook.
+// +kubebuilder:validation:Enum=Slack;Generic
+type WebhookType string
+
+const (
+	// WebhookSlack posts a {"text": ...} message to a Slack incoming webhook.
+	WebhookSlack WebhookType = "Slack"
+	// WebhookGeneric posts a structured JSON body describing the drift.
+	WebhookGeneric WebhookType = "Generic"
+)
+
+// SecretKeyRef selects a single key of a Secret in the DriftCheck's namespace.
+type SecretKeyRef struct {
+	// Name of the Secret.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// Key selects the entry within the Secret holding the value.
+	// +kubebuilder:validation:MinLength=1
+	Key string `json:"key"`
+}
+
+// Webhook is a single notification endpoint.
+// +kubebuilder:validation:XValidation:rule="has(self.url) || has(self.urlSecretRef)",message="one of url or urlSecretRef is required"
+type Webhook struct {
+	// Type selects the payload format. Slack posts a {"text": ...} message;
+	// Generic posts a structured JSON body.
+	// +kubebuilder:default=Generic
+	Type WebhookType `json:"type,omitempty"`
+
+	// URL is the webhook endpoint. Prefer URLSecretRef for secret URLs such as
+	// Slack incoming webhooks.
+	URL string `json:"url,omitempty"`
+
+	// URLSecretRef sources the webhook URL from a Secret in the DriftCheck's
+	// namespace. It takes precedence over URL when both are set.
+	URLSecretRef *SecretKeyRef `json:"urlSecretRef,omitempty"`
+}
+
+// NotifySpec configures drift notifications. A message is delivered to each
+// webhook whenever the set of drifted resources changes (including when drift
+// clears), not on every re-check.
+type NotifySpec struct {
+	// Webhooks receive a notification whenever the drift state changes.
+	// +kubebuilder:validation:MinItems=1
+	Webhooks []Webhook `json:"webhooks"`
+}
+
 // Target narrows which live resources the desired manifests are matched against.
 // An empty Target matches by the identity (group/kind/namespace/name) carried in
 // each desired manifest.
@@ -81,6 +129,9 @@ type DriftCheckSpec struct {
 	// Interval is how often the drift check is re-evaluated.
 	// +kubebuilder:default="5m"
 	Interval metav1.Duration `json:"interval,omitempty"`
+
+	// Notify configures drift notifications. When unset, no webhooks are called.
+	Notify *NotifySpec `json:"notify,omitempty"`
 }
 
 // DriftStatus mirrors the per-resource comparison outcome.
@@ -125,6 +176,11 @@ type DriftCheckStatus struct {
 
 	// ObservedGeneration is the .metadata.generation last reconciled.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// LastNotifiedHash fingerprints the drift set last delivered to the
+	// configured webhooks. It prevents re-notifying on every re-check while the
+	// drift state is unchanged; it is empty until the first notification.
+	LastNotifiedHash string `json:"lastNotifiedHash,omitempty"`
 
 	// Conditions represent the latest available observations.
 	// +patchStrategy=merge

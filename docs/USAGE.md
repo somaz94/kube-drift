@@ -22,13 +22,18 @@ make install    # install the DriftCheck CRD
 make deploy     # deploy the controller into the kube-drift-system namespace
 ```
 
+Or install with Helm — the chart ships the CRD plus the controller Deployment, RBAC, ServiceAccount, and metrics Service:
+
+```bash
+helm install kube-drift ./helm/kube-drift \
+  --namespace kube-drift-system --create-namespace
+```
+
 Verify the controller is running:
 
 ```bash
 kubectl -n kube-drift-system get deploy,pod
 ```
-
-> **Note:** the Helm chart at `helm/kube-drift/` is currently **CRD-only** — it does not yet ship the controller Deployment/RBAC/Service templates, so `helm install` will not bring up the operator. Use `make deploy` (Kustomize) for now.
 
 <br/>
 
@@ -175,6 +180,50 @@ Scope this down to specific kinds with a purpose-built ClusterRole for productio
 
 <br/>
 
+## Notifications
+
+Add `spec.notify.webhooks` to receive a message whenever the **drift state changes** — either drift is newly detected, the set of drifted resources changes, or drift is resolved. Notifications are **deduplicated**: a message is sent only when the drifted set changes (fingerprinted in `status.lastNotifiedHash`), not on every `interval` re-check.
+
+```yaml
+apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: driftcheck-sample
+  namespace: default
+spec:
+  source:
+    type: ConfigMap
+    configMap:
+      name: desired-manifests
+  interval: 5m
+  notify:
+    webhooks:
+      - type: Slack           # posts {"text": "..."} to a Slack incoming webhook
+        urlSecretRef:          # prefer a Secret over an inline URL
+          name: slack-webhook
+          key: url
+      - type: Generic         # posts a structured JSON body
+        url: http://alertmanager-webhook.monitoring.svc/drift
+```
+
+Create the Slack webhook Secret in the DriftCheck's namespace:
+
+```bash
+kubectl -n default create secret generic slack-webhook \
+  --from-literal=url='https://hooks.slack.com/services/XXX/YYY/ZZZ'
+```
+
+Each webhook has a `type`:
+
+- **`Slack`** — a human-readable `{"text": "..."}` message listing the drifted resources. Point it at a Slack [incoming webhook](https://api.slack.com/messaging/webhooks).
+- **`Generic`** (default) — a structured JSON body: `{driftCheck, namespace, resolved, summary, drifted[]}`. Point it at Alertmanager's webhook receiver or any HTTP endpoint.
+
+The URL comes from either an inline `url` or a `urlSecretRef` (a `Secret` in the DriftCheck's namespace); `urlSecretRef` takes precedence and is recommended for Slack URLs. Sourcing the URL from a Secret is why the controller declares `secrets: get` RBAC.
+
+Delivery is **best-effort with at-least-once** semantics: a webhook that fails is logged and surfaced as a `NotifyFailed` event (`kubectl describe driftcheck <name>`), and the notification is retried on the next reconcile — a retry re-sends to every configured webhook.
+
+<br/>
+
 ## Troubleshooting
 
 If a DriftCheck never reports drift, inspect its `Ready` condition:
@@ -198,9 +247,8 @@ kubectl -n kube-drift-system logs deploy/kube-drift-controller-manager -f
 
 <br/>
 
-## Limitations (v0.1)
+## Limitations
 
-- **Plain YAML only** — Helm charts and Kustomize bases are not rendered (planned for v0.2).
+- **Plain YAML only** — Helm charts and Kustomize bases are not rendered (planned for a later release).
 - **Git is anonymous** — private repositories (credentials) are not yet supported.
-- **No alerting** — drift is exposed via `status` and metrics only; Slack/webhook notifications are planned for v0.2.
 - **ConfigMap read RBAC by default** — comparing other kinds requires granting read access at install time (see [RBAC](#rbac-for-non-configmap-kinds)).

@@ -13,12 +13,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	driftv1alpha1 "github.com/somaz94/kube-drift/api/v1alpha1"
 	"github.com/somaz94/kube-drift/internal/metrics"
+	"github.com/somaz94/kube-drift/internal/notify"
 	driftsource "github.com/somaz94/kube-drift/internal/source"
 
 	"github.com/somaz94/kube-diff/pkg/cluster"
@@ -47,12 +49,22 @@ type DriftCheckReconciler struct {
 	// injected so tests can stay offline; nil falls back to the real
 	// go-git-backed clone in internal/source.
 	GitCloner driftsource.CloneFunc
+
+	// Notifier delivers drift notifications to the configured webhooks. It is
+	// injected so tests can supply a fake; nil falls back to an HTTP sender.
+	Notifier notify.Notifier
+
+	// Recorder emits Kubernetes events (e.g. a notification delivery failure).
+	// It may be nil (event emission is skipped).
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=drift.somaz.io,resources=driftchecks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=drift.somaz.io,resources=driftchecks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=drift.somaz.io,resources=driftchecks/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile evaluates a DriftCheck: it loads the desired manifests from the
 // configured source, compares them against the live cluster via the kube-diff
@@ -126,6 +138,10 @@ func (r *DriftCheckReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	r.Metrics.RecordDrift(dc.Name, dc.Namespace,
 		dc.Status.Summary.Changed, dc.Status.Summary.New,
 		dc.Status.Summary.Deleted, dc.Status.Summary.Unchanged)
+
+	if err := r.notify(ctx, &dc); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	logger.Info("drift evaluated", "name", dc.Name,
 		"changed", dc.Status.Summary.Changed,
