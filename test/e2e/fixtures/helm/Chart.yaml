@@ -1,0 +1,9 @@
+# e2e fixture: a minimal, self-contained Helm chart whose single template
+# renders a ConfigMap (named from .Release.Name) that is deliberately never
+# created in the cluster, so a Helm-source DriftCheck reports one "new" drift.
+apiVersion: v2
+name: e2e-fixture
+description: Minimal chart used by the kube-drift e2e Helm-source scenario
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

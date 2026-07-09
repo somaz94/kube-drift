@@ -1,0 +1,7 @@
+# e2e fixture: a Kustomize overlay that renders a single ConfigMap which is
+# deliberately never created in the cluster, so a Kustomize-source DriftCheck
+# reports exactly one "new" drift. The namePrefix proves the overlay is actually
+# rendered (not passed through verbatim).
+resources:
+  - cm.yaml
+namePrefix: e2e-

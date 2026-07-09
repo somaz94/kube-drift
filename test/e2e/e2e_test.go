@@ -78,6 +78,119 @@ spec:
   interval: 15s
 `
 
+// kustomizeDriftCheck points a Kustomize source at the in-repo fixture overlay,
+// cloned anonymously over Git. The overlay renders "e2e-kustomize-target"
+// (namePrefix applied), which is never created, so exactly one "new" drift is
+// reported — proving the in-cluster Git clone + in-process kustomize build path.
+const kustomizeDriftCheck = `apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: drift-kustomize-e2e
+  namespace: default
+spec:
+  source:
+    type: Kustomize
+    kustomize:
+      git:
+        url: https://github.com/somaz94/kube-drift.git
+        ref: main
+        path: test/e2e/fixtures/kustomize
+  interval: 15s
+`
+
+// helmDriftCheck points a Helm source at the in-repo fixture chart, cloned over
+// Git. The chart renders "hc-target" (from .Release.Name), never created, so one
+// "new" drift is reported — proving the in-cluster Git clone + in-process Helm
+// render path.
+const helmDriftCheck = `apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: drift-helm-e2e
+  namespace: default
+spec:
+  source:
+    type: Helm
+    helm:
+      git:
+        url: https://github.com/somaz94/kube-drift.git
+        ref: main
+        path: test/e2e/fixtures/helm
+      releaseName: hc
+  interval: 15s
+`
+
+// notifyFixture deploys an HTTP echo receiver plus a drifting DriftCheck whose
+// notify webhook targets it. The echo pod logs each request body, so the test
+// can assert the Generic notification payload (carrying the DriftCheck name)
+// was delivered — proving the end-to-end webhook-notification path.
+const notifyFixture = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drift-echo
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: drift-echo
+  template:
+    metadata:
+      labels:
+        app: drift-echo
+    spec:
+      containers:
+        - name: echo
+          image: mendhak/http-https-echo:31
+          env:
+            - name: HTTP_PORT
+              value: "8080"
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: drift-echo
+  namespace: default
+spec:
+  selector:
+    app: drift-echo
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notify-desired
+  namespace: default
+data:
+  m.yaml: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: notify-drift-target
+      namespace: default
+    data:
+      key: v
+---
+apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: drift-notify-e2e
+  namespace: default
+spec:
+  source:
+    type: ConfigMap
+    configMap:
+      name: notify-desired
+  notify:
+    webhooks:
+      - type: Generic
+        url: http://drift-echo.default.svc.cluster.local:8080/
+  interval: 15s
+`
+
 var _ = Describe("Manager", Ordered, func() {
 	var controllerPodName string
 
@@ -281,8 +394,72 @@ var _ = Describe("Manager", Ordered, func() {
 			Expect(metricsOutput).To(ContainSubstring("kube_drift_resources"),
 				"the custom kube_drift_resources gauge should be exposed after a drift evaluation")
 		})
+
+		It("should detect drift from a Kustomize source cloned over Git", func() {
+			applyManifest("kube-drift-e2e-kustomize.yaml", kustomizeDriftCheck)
+
+			By("waiting for the rendered kustomize overlay to report exactly one new drift")
+			verifyKustomizeDrift := func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "driftcheck", "drift-kustomize-e2e", "-n", "default",
+					"-o", "jsonpath={.status.summary.new}")
+				out, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(out).To(Equal("1"), "expected the rendered e2e-kustomize-target to be reported new")
+			}
+			Eventually(verifyKustomizeDrift, 3*time.Minute).Should(Succeed())
+		})
+
+		It("should detect drift from a Helm source cloned over Git", func() {
+			applyManifest("kube-drift-e2e-helm.yaml", helmDriftCheck)
+
+			By("waiting for the rendered helm chart to report exactly one new drift")
+			verifyHelmDrift := func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "driftcheck", "drift-helm-e2e", "-n", "default",
+					"-o", "jsonpath={.status.summary.new}")
+				out, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(out).To(Equal("1"), "expected the rendered hc-target to be reported new")
+			}
+			Eventually(verifyHelmDrift, 3*time.Minute).Should(Succeed())
+		})
+
+		It("should deliver a webhook notification when drift is detected", func() {
+			applyManifest("kube-drift-e2e-notify.yaml", notifyFixture)
+
+			By("waiting for the echo receiver to become available")
+			verifyEchoUp := func(g Gomega) {
+				cmd := exec.Command("kubectl", "rollout", "status", "deploy/drift-echo",
+					"-n", "default", "--timeout=10s")
+				_, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+			}
+			Eventually(verifyEchoUp, 2*time.Minute).Should(Succeed())
+
+			By("waiting for the notification payload to reach the echo receiver")
+			verifyNotified := func(g Gomega) {
+				cmd := exec.Command("kubectl", "logs", "deploy/drift-echo", "-n", "default")
+				out, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(out).To(ContainSubstring("drift-notify-e2e"),
+					"the Generic webhook payload naming the DriftCheck should have been POSTed to the receiver")
+			}
+			Eventually(verifyNotified, 3*time.Minute).Should(Succeed())
+		})
 	})
 })
+
+// applyManifest writes content to a temp file, applies it, and registers a
+// deferred delete + cleanup so each scenario tears down its own fixture.
+func applyManifest(name, content string) {
+	path := filepath.Join(os.TempDir(), name)
+	ExpectWithOffset(1, os.WriteFile(path, []byte(content), 0o644)).To(Succeed())
+	DeferCleanup(func() {
+		_, _ = utils.Run(exec.Command("kubectl", "delete", "-f", path, "--ignore-not-found"))
+		_ = os.Remove(path)
+	})
+	_, err := utils.Run(exec.Command("kubectl", "apply", "-f", path))
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "failed to apply "+name)
+}
 
 // driftManifestsPath returns the temp-file path used to apply and delete the
 // DriftCheck fixture.
