@@ -2,6 +2,27 @@ apiVersion: v1
 entries:
   kube-drift:
   - apiVersion: v2
+    appVersion: v0.2.0
+    created: "2026-07-09T03:35:43.007096624Z"
+    description: A Helm chart for kube-drift controller
+    digest: 4331aeb57fa54cf3ad5ab28407994910062af51b221f909980468544fe627032
+    home: https://github.com/somaz94/kube-drift
+    keywords:
+    - kubernetes
+    - controller
+    - operator
+    kubeVersion: '>=1.16.0-0'
+    maintainers:
+    - name: somaz94
+      url: https://github.com/somaz94
+    name: kube-drift
+    sources:
+    - https://github.com/somaz94/kube-drift
+    type: application
+    urls:
+    - https://somaz94.github.io/kube-drift/helm-repo/kube-drift-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
     appVersion: v0.1.0
     created: "2026-07-08T09:35:17.913772967Z"
     description: A Helm chart for kube-drift controller
@@ -22,4 +43,4 @@ entries:
     urls:
     - https://somaz94.github.io/kube-drift/helm-repo/kube-drift-0.1.0.tgz
     version: 0.1.0
-generated: "2026-07-08T09:35:17.913280884Z"
+generated: "2026-07-09T03:35:43.006367107Z"
