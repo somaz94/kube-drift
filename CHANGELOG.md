@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.2.0](https://github.com/somaz94/kube-drift/compare/v0.1.0...v0.2.0) (2026-07-09)
+
+### Features
+
+- add in-process Helm and Kustomize sources ([641e2fb](https://github.com/somaz94/kube-drift/commit/641e2fb447c37157ee00e91f5e3dca96d6cf8c04))
+- add Slack/webhook drift notifications ([89fbff0](https://github.com/somaz94/kube-drift/commit/89fbff05292fd8f1d9f13cde6a4611d2006e45e2))
+- add helm controller templates (deployment, rbac, service, sa) ([0d7fbed](https://github.com/somaz94/kube-drift/commit/0d7fbed3ff947f12ad558ac6cb610d8872d06f8d))
+
+### Continuous Integration
+
+- build and push docker image on release tag ([b118f53](https://github.com/somaz94/kube-drift/commit/b118f53401fb0fc153d424371a5626e5a9b05973))
+
+### Chores
+
+- bump version to v0.2.0 ([663b0f9](https://github.com/somaz94/kube-drift/commit/663b0f9c91ebc05184abe62876c76375c0a263b4))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.1.0](https://github.com/somaz94/kube-drift/releases/tag/v0.1.0) (2026-07-08)
 
 ### Features
