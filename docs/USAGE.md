@@ -115,7 +115,7 @@ spec:
   source:
     type: Git
     git:
-      url: https://github.com/somaz94/kube-drift.git   # anonymous clone (public repos only in v0.1)
+      url: https://github.com/somaz94/kube-drift.git   # anonymous by default; add auth for private repos (below)
       ref: main                                        # branch, tag, or commit SHA; omit for the default branch
       path: config/samples                             # sub-directory holding the manifests; omit for the repo root
   interval: 10m
@@ -123,7 +123,146 @@ spec:
 
 - **`ref`** accepts a branch name, a tag, or a commit SHA. A non-default branch resolves via its `origin/<ref>` remote-tracking form.
 - **`path`** is a sub-directory within the repository. Only `.yaml` / `.yml` files are parsed; other files are ignored.
-- Clones are **anonymous** — private repositories are not yet supported.
+- Clones are **anonymous by default**. To clone a private repository, add a `source.git.auth` block — see [Private repositories (Git auth)](#private-repositories-git-auth) below.
+
+<br/>
+
+## Private repositories (Git auth)
+
+Set `source.git.auth` to clone a private repository. When `auth` is omitted the clone is anonymous (the default above). Authentication uses pure-Go [`go-git`](https://github.com/go-git/go-git) — there is no shell-out to a `git` binary. Credentials are read by the controller from a `Secret` **in the DriftCheck's namespace** (this is why the controller declares `secrets: get` RBAC).
+
+`auth` has two fields:
+
+- **`type`** — one of `Basic`, `Bearer`, or `SSH` (required).
+- **`secretRef.name`** — the name of a `Secret` in the DriftCheck's namespace holding the credentials (required). The keys read from the Secret's `data` depend on `type` (below).
+
+The same `auth` block is accepted on the nested Git blocks of the Helm and Kustomize sources — `source.helm.git.auth` and `source.kustomize.git.auth`.
+
+If the referenced Secret is missing, or a required key is absent, the check fails with a `SourceError` condition and retries on the next `interval`. It does **not** silently fall back to an anonymous clone.
+
+<br/>
+
+### Basic (HTTPS username / password or PAT)
+
+For HTTPS with a username and password, or a GitHub/GitLab personal access token (PAT). For a PAT, put the token in `password` and any non-empty value in `username` (e.g. your Git username).
+
+```bash
+kubectl -n default create secret generic git-basic-auth \
+  --from-literal=username='example-user' \
+  --from-literal=password='example-pat-value'
+```
+
+```yaml
+apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: driftcheck-git-basic
+  namespace: default
+spec:
+  source:
+    type: Git
+    git:
+      url: https://github.com/example-org/private-manifests.git
+      ref: main
+      path: config/samples
+      auth:
+        type: Basic
+        secretRef:
+          name: git-basic-auth
+  interval: 10m
+```
+
+Secret keys: `username`, `password`.
+
+<br/>
+
+### Bearer (HTTPS bearer token)
+
+For an HTTPS bearer token — e.g. a GitHub App installation token or an OAuth token.
+
+```bash
+kubectl -n default create secret generic git-bearer-auth \
+  --from-literal=bearerToken='example-bearer-token'
+```
+
+```yaml
+apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: driftcheck-git-bearer
+  namespace: default
+spec:
+  source:
+    type: Git
+    git:
+      url: https://github.com/example-org/private-manifests.git
+      ref: main
+      path: config/samples
+      auth:
+        type: Bearer
+        secretRef:
+          name: git-bearer-auth
+  interval: 10m
+```
+
+Secret key: `bearerToken`.
+
+<br/>
+
+### SSH (private key)
+
+For SSH-based clone URLs (`git@github.com:example-org/private-manifests.git`). The login user defaults to `git`.
+
+Host-key verification is **fail-closed**: the `known_hosts` key is **required**, and there is no insecure skip option. An SSH auth Secret without `known_hosts` is rejected.
+
+```bash
+kubectl -n default create secret generic git-ssh-auth \
+  --from-file=identity=$HOME/.ssh/id_ed25519 \
+  --from-file=known_hosts=$HOME/.ssh/known_hosts
+  # optionally, if the private key is passphrase-protected:
+  # --from-literal=password='example-passphrase'
+```
+
+```yaml
+apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: driftcheck-git-ssh
+  namespace: default
+spec:
+  source:
+    type: Git
+    git:
+      url: git@github.com:example-org/private-manifests.git
+      ref: main
+      path: config/samples
+      auth:
+        type: SSH
+        secretRef:
+          name: git-ssh-auth
+  interval: 10m
+```
+
+The Secret's `data` (base64-encoded by Kubernetes) holds:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: git-ssh-auth
+  namespace: default
+type: Opaque
+stringData:
+  identity: |
+    -----BEGIN OPENSSH PRIVATE KEY-----
+    ...redacted...
+    -----END OPENSSH PRIVATE KEY-----
+  known_hosts: |
+    github.com ssh-ed25519 AAAA...redacted...
+  # password: example-passphrase    # optional — only if the private key is encrypted
+```
+
+Secret keys: `identity` (PEM private key, required), `known_hosts` (required), `password` (private-key passphrase, optional).
 
 <br/>
 
@@ -184,7 +323,7 @@ spec:
 ```
 
 - Uses the default (root-only) load restrictions — a kustomization cannot read files outside its own directory tree.
-- Remote bases referenced by URL are subject to the same anonymous-clone limitation as the Git source.
+- Remote bases referenced by URL are fetched anonymously (they do not use the `source.kustomize.git.auth` credentials, which apply only to the top-level overlay clone).
 
 <br/>
 
@@ -312,6 +451,6 @@ kubectl -n kube-drift-system logs deploy/kube-drift-controller-manager -f
 
 ## Limitations
 
-- **Git is anonymous** — private repositories (credentials) are not yet supported, including remote Kustomize bases and un-vendored Helm chart dependencies.
+- **Git private repos via `auth` only** — the top-level Git / Helm / Kustomize clone supports private repositories through `source.git.auth` (Basic / Bearer / SSH); without `auth` the clone is anonymous. Remote Kustomize bases and un-vendored Helm chart dependencies are still fetched anonymously.
 - **Self-contained Helm charts** — chart dependencies must be vendored under `charts/` (no `helm dependency update` step).
 - **ConfigMap read RBAC by default** — comparing other kinds requires granting read access at install time (see [RBAC](#rbac-for-non-configmap-kinds)).

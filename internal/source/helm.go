@@ -32,6 +32,9 @@ type HelmSource struct {
 	// order before Values.
 	ValuesFiles []string
 
+	// auth holds clone credentials; nil clones anonymously.
+	auth *GitAuth
+
 	// ctx carries the reconcile request's cancellation into the clone, bounded
 	// to a single Reconcile call (same rationale as GitSource.ctx). clone
 	// defaults to the real go-git clone when nil.
@@ -40,20 +43,21 @@ type HelmSource struct {
 }
 
 // NewHelmSource builds a HelmSource. When clone is nil the real go-git-backed
-// clone is used; tests pass a fake to stay offline.
-func NewHelmSource(ctx context.Context, url, ref, path, releaseName, namespace string, values []byte, valuesFiles []string, clone CloneFunc) *HelmSource {
+// clone is used; tests pass a fake to stay offline. auth may be nil for an
+// anonymous clone.
+func NewHelmSource(ctx context.Context, url, ref, path, releaseName, namespace string, values []byte, valuesFiles []string, auth *GitAuth, clone CloneFunc) *HelmSource {
 	return &HelmSource{
 		URL: url, Ref: ref, Path: path,
 		ReleaseName: releaseName, Namespace: namespace,
 		Values: values, ValuesFiles: valuesFiles,
-		ctx: ctx, clone: clone,
+		auth: auth, ctx: ctx, clone: clone,
 	}
 }
 
 // Load clones the repository, renders the chart, parses the manifests, and
 // cleans up.
 func (h *HelmSource) Load() ([]kdsource.Resource, error) {
-	return withCheckout(h.ctx, h.URL, h.Ref, h.Path, h.clone, func(chartDir string) ([]kdsource.Resource, error) {
+	return withCheckout(h.ctx, h.URL, h.Ref, h.Path, h.auth, h.clone, func(chartDir string) ([]kdsource.Resource, error) {
 		manifests, err := renderHelmChart(chartDir, h.ReleaseName, h.Namespace, h.Values, h.ValuesFiles)
 		if err != nil {
 			return nil, err

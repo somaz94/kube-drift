@@ -100,12 +100,12 @@ func TestRenderHelmChart_MissingValuesFile(t *testing.T) {
 func TestHelmSource_Load(t *testing.T) {
 	// The fake cloner writes the chart into a "chart" sub-directory of the
 	// clone target, exercising the withCheckout + sub-path path.
-	clone := func(_ context.Context, dir, _, _ string) error {
+	clone := func(_ context.Context, dir, _, _ string, _ *GitAuth) error {
 		writeChart(t, filepath.Join(dir, "chart"))
 		return nil
 	}
 	h := NewHelmSource(context.Background(), "https://example.com/repo.git", "main", "chart",
-		"rel", "ns", []byte(`{"greeting":"loaded"}`), nil, clone)
+		"rel", "ns", []byte(`{"greeting":"loaded"}`), nil, nil, clone)
 
 	resources, err := h.Load()
 	if err != nil {

@@ -134,6 +134,34 @@ spec:
                     description: Git configures a Git source. Required when Type is
                       "Git".
                     properties:
+                      auth:
+                        description: |-
+                          Auth references credentials for cloning a private repository. When unset,
+                          the repository is cloned anonymously.
+                        properties:
+                          secretRef:
+                            description: |-
+                              SecretRef names the Secret in the DriftCheck's namespace holding the
+                              credentials.
+                            properties:
+                              name:
+                                description: Name of the Secret.
+                                minLength: 1
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          type:
+                            description: Type selects the authentication scheme.
+                            enum:
+                            - Basic
+                            - Bearer
+                            - SSH
+                            type: string
+                        required:
+                        - secretRef
+                        - type
+                        type: object
                       path:
                         description: |-
                           Path is the directory within the repository holding the manifests.
@@ -160,6 +188,34 @@ spec:
                           Git locates the chart. Path points at the chart directory within the
                           repository (the directory containing Chart.yaml).
                         properties:
+                          auth:
+                            description: |-
+                              Auth references credentials for cloning a private repository. When unset,
+                              the repository is cloned anonymously.
+                            properties:
+                              secretRef:
+                                description: |-
+                                  SecretRef names the Secret in the DriftCheck's namespace holding the
+                                  credentials.
+                                properties:
+                                  name:
+                                    description: Name of the Secret.
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                              type:
+                                description: Type selects the authentication scheme.
+                                enum:
+                                - Basic
+                                - Bearer
+                                - SSH
+                                type: string
+                            required:
+                            - secretRef
+                            - type
+                            type: object
                           path:
                             description: |-
                               Path is the directory within the repository holding the manifests.
@@ -211,6 +267,34 @@ spec:
                           Git locates the overlay. Path points at the directory holding the
                           kustomization.yaml within the repository.
                         properties:
+                          auth:
+                            description: |-
+                              Auth references credentials for cloning a private repository. When unset,
+                              the repository is cloned anonymously.
+                            properties:
+                              secretRef:
+                                description: |-
+                                  SecretRef names the Secret in the DriftCheck's namespace holding the
+                                  credentials.
+                                properties:
+                                  name:
+                                    description: Name of the Secret.
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                              type:
+                                description: Type selects the authentication scheme.
+                                enum:
+                                - Basic
+                                - Bearer
+                                - SSH
+                                type: string
+                            required:
+                            - secretRef
+                            - type
+                            type: object
                           path:
                             description: |-
                               Path is the directory within the repository holding the manifests.

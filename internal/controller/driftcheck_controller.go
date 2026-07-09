@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -181,7 +182,11 @@ func (r *DriftCheckReconciler) buildSource(ctx context.Context, dc *driftv1alpha
 			// surfaces as a permanent SourceError rather than looping on clone.
 			return nil, fmt.Errorf("source.git.url is required when type is Git")
 		}
-		return driftsource.NewGitSource(ctx, g.URL, g.Ref, g.Path, r.GitCloner), nil
+		auth, err := r.resolveGitAuth(ctx, dc.Namespace, g.Auth)
+		if err != nil {
+			return nil, err
+		}
+		return driftsource.NewGitSource(ctx, g.URL, g.Ref, g.Path, auth, r.GitCloner), nil
 	case driftv1alpha1.SourceTypeHelm:
 		h := dc.Spec.Source.Helm
 		if h == nil {
@@ -202,8 +207,12 @@ func (r *DriftCheckReconciler) buildSource(ctx context.Context, dc *driftv1alpha
 		if h.Values != nil {
 			values = h.Values.Raw
 		}
+		auth, err := r.resolveGitAuth(ctx, dc.Namespace, h.Git.Auth)
+		if err != nil {
+			return nil, err
+		}
 		return driftsource.NewHelmSource(ctx, h.Git.URL, h.Git.Ref, h.Git.Path,
-			releaseName, namespace, values, h.ValuesFiles, r.GitCloner), nil
+			releaseName, namespace, values, h.ValuesFiles, auth, r.GitCloner), nil
 	case driftv1alpha1.SourceTypeKustomize:
 		k := dc.Spec.Source.Kustomize
 		if k == nil {
@@ -212,9 +221,85 @@ func (r *DriftCheckReconciler) buildSource(ctx context.Context, dc *driftv1alpha
 		if k.Git.URL == "" {
 			return nil, fmt.Errorf("source.kustomize.git.url is required when type is Kustomize")
 		}
-		return driftsource.NewKustomizeSource(ctx, k.Git.URL, k.Git.Ref, k.Git.Path, r.GitCloner), nil
+		auth, err := r.resolveGitAuth(ctx, dc.Namespace, k.Git.Auth)
+		if err != nil {
+			return nil, err
+		}
+		return driftsource.NewKustomizeSource(ctx, k.Git.URL, k.Git.Ref, k.Git.Path, auth, r.GitCloner), nil
 	default:
 		return nil, fmt.Errorf("unknown source type %q", dc.Spec.Source.Type)
+	}
+}
+
+// resolveGitAuth dereferences the DriftCheck's Git credentials from a Secret in
+// its namespace, mirroring resolveWebhookURL. A nil spec yields nil (anonymous
+// clone). The keys read depend on the scheme; a missing or empty required key is
+// an error so a misconfigured Secret surfaces as a SourceError rather than a
+// silent anonymous clone. Error messages never echo credential material.
+func (r *DriftCheckReconciler) resolveGitAuth(ctx context.Context, ns string, spec *driftv1alpha1.GitAuth) (*driftsource.GitAuth, error) {
+	if spec == nil {
+		return nil, nil
+	}
+	var sec corev1.Secret
+	if err := r.Get(ctx, types.NamespacedName{Name: spec.SecretRef.Name, Namespace: ns}, &sec); err != nil {
+		return nil, fmt.Errorf("get git auth Secret %s/%s: %w", ns, spec.SecretRef.Name, err)
+	}
+	secretName := ns + "/" + spec.SecretRef.Name
+
+	// requireStr reads a required non-secret string key (e.g. a username),
+	// trimming surrounding whitespace.
+	requireStr := func(key string) (string, error) {
+		v := strings.TrimSpace(string(sec.Data[key]))
+		if v == "" {
+			return "", fmt.Errorf("git auth Secret %s is missing key %q", secretName, key)
+		}
+		return v, nil
+	}
+	// requireSecret reads a required credential key (a password or token),
+	// stripping only a trailing newline — a common Secret artifact — so any
+	// other character in the credential is preserved verbatim.
+	requireSecret := func(key string) (string, error) {
+		v := strings.TrimRight(string(sec.Data[key]), "\r\n")
+		if v == "" {
+			return "", fmt.Errorf("git auth Secret %s is missing key %q", secretName, key)
+		}
+		return v, nil
+	}
+
+	switch spec.Type {
+	case driftv1alpha1.GitAuthBasic:
+		username, err := requireStr("username")
+		if err != nil {
+			return nil, err
+		}
+		password, err := requireSecret("password")
+		if err != nil {
+			return nil, err
+		}
+		return &driftsource.GitAuth{Basic: &driftsource.BasicAuth{Username: username, Password: password}}, nil
+	case driftv1alpha1.GitAuthBearer:
+		token, err := requireSecret("bearerToken")
+		if err != nil {
+			return nil, err
+		}
+		return &driftsource.GitAuth{Bearer: token}, nil
+	case driftv1alpha1.GitAuthSSH:
+		identity := sec.Data["identity"]
+		if len(bytes.TrimSpace(identity)) == 0 {
+			return nil, fmt.Errorf("git auth Secret %s is missing key %q", secretName, "identity")
+		}
+		knownHosts := sec.Data["known_hosts"]
+		if len(bytes.TrimSpace(knownHosts)) == 0 {
+			// Fail-closed: SSH host-key verification requires known_hosts.
+			return nil, fmt.Errorf("git auth Secret %s is missing key %q (SSH host-key verification is fail-closed)", secretName, "known_hosts")
+		}
+		return &driftsource.GitAuth{SSH: &driftsource.SSHAuth{
+			PrivateKey: identity,
+			Passphrase: sec.Data["password"],
+			KnownHosts: knownHosts,
+		}}, nil
+	default:
+		return nil, fmt.Errorf("unknown git auth type %q", spec.Type)
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 
 	myv1 "github.com/somaz94/kube-drift/api/v1alpha1"
 	"github.com/somaz94/kube-drift/internal/metrics"
+	driftsource "github.com/somaz94/kube-drift/internal/source"
 )
 
 // fakeFetcher implements kube-diff's cluster.ResourceFetcher. A resource keyed
@@ -180,7 +181,7 @@ func TestReconcile_GitSourceDetectsDrift(t *testing.T) {
 
 	// Live cluster is empty, so the desired ConfigMap surfaces as "new".
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
-	r.GitCloner = func(_ context.Context, dir, _, _ string) error {
+	r.GitCloner = func(_ context.Context, dir, _, _ string, _ *driftsource.GitAuth) error {
 		sub := filepath.Join(dir, "manifests")
 		if err := os.MkdirAll(sub, 0o755); err != nil {
 			return err
@@ -241,7 +242,7 @@ func TestReconcile_HelmSourceDetectsDrift(t *testing.T) {
 		},
 	}
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc) // live empty → rendered CM is "new"
-	r.GitCloner = func(_ context.Context, dir, _, _ string) error {
+	r.GitCloner = func(_ context.Context, dir, _, _ string, _ *driftsource.GitAuth) error {
 		writeChartAt(t, filepath.Join(dir, "chart"))
 		return nil
 	}
@@ -270,7 +271,7 @@ func TestReconcile_KustomizeSourceDetectsDrift(t *testing.T) {
 		},
 	}
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
-	r.GitCloner = func(_ context.Context, dir, _, _ string) error {
+	r.GitCloner = func(_ context.Context, dir, _, _ string, _ *driftsource.GitAuth) error {
 		base := filepath.Join(dir, "overlay")
 		if err := os.MkdirAll(base, 0o755); err != nil {
 			return err

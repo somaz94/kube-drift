@@ -14,9 +14,15 @@ spec:
     # --- Or load the desired manifests from a Git repository instead: ---
     # type: Git
     # git:
-    #   url: https://github.com/somaz94/kube-drift.git   # anonymous clone (public repos only)
+    #   url: https://github.com/somaz94/kube-drift.git   # anonymous by default; add auth for private repos
     #   ref: main                                        # branch, tag, or commit; omit for the default branch
     #   path: config/samples                             # sub-directory holding the plain-YAML manifests
+    #   # For a private repository, reference a Secret in this DriftCheck's namespace:
+    #   auth:
+    #     type: Basic                                    # Basic | Bearer | SSH
+    #     secretRef:
+    #       name: git-credentials                        # Basic: username+password | Bearer: bearerToken
+    #                                                     # SSH: identity + known_hosts (required) [+ password]
     # --- Or render a Helm chart from a Git repository in-process: ---
     # type: Helm
     # helm:

@@ -2,7 +2,7 @@
 
 Kubernetes operator that detects configuration drift between desired-state manifests and the live cluster on a schedule. The in-cluster counterpart to the `kube-diff` CLI. Kubebuilder v4 project (controller-runtime).
 
-> **Maturity**: working operator (v0.1.x released; v0.2 features on `main`). Drift detection runs against `ConfigMap`, `Git`, `Helm`, and `Kustomize` sources, records results into `status`, exposes Prometheus metrics, and sends webhook notifications. Git clones are anonymous (public repos only).
+> **Maturity**: working operator (v0.1.x released; v0.3 features on `main`). Drift detection runs against `ConfigMap`, `Git`, `Helm`, and `Kustomize` sources, records results into `status`, exposes Prometheus metrics, and sends webhook notifications. Git clones are anonymous by default; private repos are supported via `source.git.auth` (Basic/Bearer/SSH, go-git, credentials from a Secret in the DriftCheck's namespace).
 
 <br/>
 

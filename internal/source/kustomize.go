@@ -18,6 +18,9 @@ import (
 type KustomizeSource struct {
 	URL, Ref, Path string
 
+	// auth holds clone credentials; nil clones anonymously.
+	auth *GitAuth
+
 	// ctx carries the reconcile request's cancellation into the clone, bounded
 	// to a single Reconcile call (same rationale as GitSource.ctx). clone
 	// defaults to the real go-git clone when nil.
@@ -26,15 +29,16 @@ type KustomizeSource struct {
 }
 
 // NewKustomizeSource builds a KustomizeSource. When clone is nil the real
-// go-git-backed clone is used; tests pass a fake to stay offline.
-func NewKustomizeSource(ctx context.Context, url, ref, path string, clone CloneFunc) *KustomizeSource {
-	return &KustomizeSource{URL: url, Ref: ref, Path: path, ctx: ctx, clone: clone}
+// go-git-backed clone is used; tests pass a fake to stay offline. auth may be
+// nil for an anonymous clone.
+func NewKustomizeSource(ctx context.Context, url, ref, path string, auth *GitAuth, clone CloneFunc) *KustomizeSource {
+	return &KustomizeSource{URL: url, Ref: ref, Path: path, auth: auth, ctx: ctx, clone: clone}
 }
 
 // Load clones the repository, builds the overlay, parses the manifests, and
 // cleans up.
 func (k *KustomizeSource) Load() ([]kdsource.Resource, error) {
-	return withCheckout(k.ctx, k.URL, k.Ref, k.Path, k.clone, func(dir string) ([]kdsource.Resource, error) {
+	return withCheckout(k.ctx, k.URL, k.Ref, k.Path, k.auth, k.clone, func(dir string) ([]kdsource.Resource, error) {
 		manifests, err := renderKustomize(dir)
 		if err != nil {
 			return nil, err

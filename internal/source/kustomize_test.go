@@ -56,11 +56,11 @@ func TestRenderKustomize_OverlayReferencingBase(t *testing.T) {
 }
 
 func TestKustomizeSource_Load(t *testing.T) {
-	clone := func(_ context.Context, dir, _, _ string) error {
+	clone := func(_ context.Context, dir, _, _ string, _ *GitAuth) error {
 		writeKustomization(t, filepath.Join(dir, "overlay"))
 		return nil
 	}
-	k := NewKustomizeSource(context.Background(), "https://example.com/repo.git", "main", "overlay", clone)
+	k := NewKustomizeSource(context.Background(), "https://example.com/repo.git", "main", "overlay", nil, clone)
 
 	resources, err := k.Load()
 	if err != nil {

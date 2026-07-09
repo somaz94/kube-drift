@@ -68,7 +68,7 @@ func TestGitClone_RealLocalRepo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Use the real gitClone (nil cloner) against the local path.
-			src := NewGitSource(context.Background(), repoDir, tt.ref, "manifests", nil)
+			src := NewGitSource(context.Background(), repoDir, tt.ref, "manifests", nil, nil)
 			resources, err := src.Load()
 			if err != nil {
 				t.Fatalf("Load(ref=%q) error = %v", tt.ref, err)
@@ -82,7 +82,7 @@ func TestGitClone_RealLocalRepo(t *testing.T) {
 
 func TestGitClone_BadRef(t *testing.T) {
 	repoDir, _ := newLocalRepo(t)
-	src := NewGitSource(context.Background(), repoDir, "does-not-exist", "", nil)
+	src := NewGitSource(context.Background(), repoDir, "does-not-exist", "", nil, nil)
 	if _, err := src.Load(); err == nil {
 		t.Fatal("expected error for unresolvable ref, got nil")
 	}
@@ -90,7 +90,7 @@ func TestGitClone_BadRef(t *testing.T) {
 
 func TestGitClone_BadURL(t *testing.T) {
 	// A path with no repository fails the clone itself.
-	src := NewGitSource(context.Background(), filepath.Join(t.TempDir(), "nope"), "", "", nil)
+	src := NewGitSource(context.Background(), filepath.Join(t.TempDir(), "nope"), "", "", nil, nil)
 	if _, err := src.Load(); err == nil {
 		t.Fatal("expected clone error for missing repo, got nil")
 	}

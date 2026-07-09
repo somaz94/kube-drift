@@ -8,7 +8,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/somaz94/kube-drift)](https://goreportcard.com/report/github.com/somaz94/kube-drift)
 ![GitHub Stars](https://img.shields.io/github/stars/somaz94/kube-drift?style=social)
 
-> **Status: early development (v0.2.0 — WIP).** The `DriftCheck` CRD, the operator, and drift detection for **`ConfigMap`, `Git`, `Helm`, and `Kustomize` sources** are implemented, along with Prometheus metrics and Slack/webhook notifications: the controller loads (and, for Helm/Kustomize, renders) the desired manifests, compares them against the live cluster via the `kube-diff` engine, and records the result into `status`. Still pending: Git credential support (clones are anonymous today) and a broader read-RBAC story for arbitrary compared kinds. See [Roadmap](#roadmap) before depending on this.
+> **Status: early development (v0.3.0 — WIP).** The `DriftCheck` CRD, the operator, and drift detection for **`ConfigMap`, `Git`, `Helm`, and `Kustomize` sources** are implemented, along with Prometheus metrics and Slack/webhook notifications: the controller loads (and, for Helm/Kustomize, renders) the desired manifests, compares them against the live cluster via the `kube-diff` engine, and records the result into `status`. Git sources can now clone private repositories via `source.git.auth` (Basic/Bearer/SSH). Still pending: a broader read-RBAC story for arbitrary compared kinds. See [Roadmap](#roadmap) before depending on this.
 
 <br/>
 
@@ -40,7 +40,7 @@ Where `kube-diff` answers "does the cluster match this directory of YAML right n
 - **Webhook notifications** — Slack or generic-JSON webhooks fire when the drift state changes (detected or resolved), deduplicated so they don't repeat on every re-check; the URL can come from a `Secret`
 - **Shared engine** — reuses the comparison engine extracted from `kube-diff`, so CLI and operator produce consistent results
 
-> Source-backend maturity: `ConfigMap`, `Git`, `Helm`, and `Kustomize` sources are implemented. `Helm`/`Kustomize` render from a Git checkout and are rendered in-process. Git clones **anonymously** for now (no credential support yet), so only publicly cloneable repositories work today — see [Roadmap](#roadmap).
+> Source-backend maturity: `ConfigMap`, `Git`, `Helm`, and `Kustomize` sources are implemented. `Helm`/`Kustomize` render from a Git checkout and are rendered in-process. Git clones **anonymously by default**, and can authenticate to private repositories via `source.git.auth` (Basic / Bearer / SSH) when set — see the [Usage Guide](docs/USAGE.md).
 
 <br/>
 
@@ -128,7 +128,7 @@ spec:
   source:
     type: Git
     git:
-      url: https://github.com/somaz94/kube-drift.git   # anonymous clone (public repos only in v0.1)
+      url: https://github.com/somaz94/kube-drift.git   # anonymous by default; private repos via auth (see USAGE)
       ref: main                                        # branch, tag, or commit; omit for the default branch
       path: config/samples                             # sub-directory holding the manifests; omit for the root
   interval: 10m
@@ -144,6 +144,8 @@ spec:
 | `source.git.url` | string | Clone URL of the repository (required when `type: Git`) |
 | `source.git.ref` | string | Branch, tag, or commit; defaults to the repo's default branch |
 | `source.git.path` | string | Directory within the repo holding the manifests; defaults to root |
+| `source.git.auth.type` | enum | `Basic`, `Bearer`, or `SSH` — omit for an anonymous clone (see [Usage Guide](docs/USAGE.md)) |
+| `source.git.auth.secretRef.name` | string | Secret (in the DriftCheck's namespace) holding the credentials for `auth.type` |
 | `source.configMap.name` | string | ConfigMap name (required when `type: ConfigMap`) |
 | `source.configMap.namespace` | string | ConfigMap namespace; defaults to the DriftCheck's namespace |
 | `source.configMap.key` | string | Single data key; omit to concatenate every key as a YAML stream |
@@ -177,7 +179,7 @@ Per-resource `status` values: `unchanged`, `changed`, `new`, `deleted`.
 - [x] `Helm` / `Kustomize` source backends — render a chart / build an overlay from a Git checkout **in-process** (Helm SDK + Kustomize API, no shell-out)
 - [x] Webhook notifications — Slack / generic-JSON, deduplicated on drift-state change, URL sourced from a `Secret`
 - [x] End-to-end test suite + `test-e2e.yml` on push/PR via [`kind-e2e-test-action`](https://github.com/somaz94/kind-e2e-test-action)
-- [ ] Git credential support for private repositories
+- [x] Git credential support for private repositories — `source.git.auth` (Basic / Bearer / SSH), also on `source.helm.git.auth` and `source.kustomize.git.auth`
 - [ ] Read-RBAC story for comparing arbitrary resource kinds (currently only `configmaps` is declared; broader read is granted at install time)
 
 <br/>

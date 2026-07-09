@@ -34,6 +34,50 @@ type GitSource struct {
 	// Path is the directory within the repository holding the manifests.
 	// Defaults to the repository root.
 	Path string `json:"path,omitempty"`
+
+	// Auth references credentials for cloning a private repository. When unset,
+	// the repository is cloned anonymously.
+	Auth *GitAuth `json:"auth,omitempty"`
+}
+
+// GitAuthType selects the authentication scheme for cloning a private Git
+// repository.
+// +kubebuilder:validation:Enum=Basic;Bearer;SSH
+type GitAuthType string
+
+const (
+	// GitAuthBasic authenticates over HTTPS with a username and password/token.
+	GitAuthBasic GitAuthType = "Basic"
+	// GitAuthBearer authenticates over HTTPS with a bearer token (e.g. a GitHub
+	// App installation token or an OAuth token).
+	GitAuthBearer GitAuthType = "Bearer"
+	// GitAuthSSH authenticates over SSH with a private key.
+	GitAuthSSH GitAuthType = "SSH"
+)
+
+// GitAuth configures authentication for cloning a private Git repository. The
+// credentials are read from a Secret in the DriftCheck's namespace; the keys
+// read depend on Type:
+//   - Basic:  "username" and "password" (a personal access token goes in
+//     "password").
+//   - Bearer: "bearerToken".
+//   - SSH:    "identity" (a PEM-encoded private key), "known_hosts" (required —
+//     host-key verification is fail-closed), and optional "password" (the
+//     private-key passphrase).
+type GitAuth struct {
+	// Type selects the authentication scheme.
+	Type GitAuthType `json:"type"`
+
+	// SecretRef names the Secret in the DriftCheck's namespace holding the
+	// credentials.
+	SecretRef LocalSecretRef `json:"secretRef"`
+}
+
+// LocalSecretRef names a Secret in the DriftCheck's namespace.
+type LocalSecretRef struct {
+	// Name of the Secret.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
 }
 
 // ConfigMapSource points at plain-YAML manifests stored in a ConfigMap.
