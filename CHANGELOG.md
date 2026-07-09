@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.4.0](https://github.com/somaz94/kube-drift/compare/v0.3.0...v0.4.0) (2026-07-09)
+
+### Features
+
+- add opt-in in-process Helm dependency build ([39b0344](https://github.com/somaz94/kube-drift/commit/39b03448c409a0a0df7f6ed96b06df98ace295bd))
+- add opt-in broad read-RBAC chart knobs (viewRole, extraRules) ([7f24a12](https://github.com/somaz94/kube-drift/commit/7f24a123b09316daba8fcb2315e5f00adb9715e3))
+
+### Chores
+
+- bump version to v0.4.0 ([8c8ddff](https://github.com/somaz94/kube-drift/commit/8c8ddff81d312cf60605fc1f60a1e187de691f7c))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.3.0](https://github.com/somaz94/kube-drift/compare/v0.2.0...v0.3.0) (2026-07-09)
 
 ### Features
