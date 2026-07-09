@@ -1,5 +1,7 @@
-// Package source adapts external desired-state backends (currently Git) into
-// the kube-diff source.Source interface consumed by the drift engine.
+// Package source adapts external desired-state backends (Git repositories,
+// plus in-process Helm-chart and Kustomize-overlay rendering on top of a Git
+// checkout) into the kube-diff source.Source interface consumed by the drift
+// engine.
 package source
 
 import (
@@ -54,25 +56,46 @@ func NewGitSource(ctx context.Context, url, ref, path string, clone CloneFunc) *
 
 // Load clones the repository, parses the manifests under Path, and cleans up.
 func (g *GitSource) Load() ([]kdsource.Resource, error) {
+	return withCheckout(g.ctx, g.URL, g.Ref, g.Path, g.clone, func(loadPath string) ([]kdsource.Resource, error) {
+		return kdsource.NewFileSource(loadPath).Load()
+	})
+}
+
+// withCheckout clones url@ref into a temporary directory, resolves path against
+// the checkout (rejecting escapes), invokes fn with the resolved load path, and
+// removes the checkout before returning. It is the shared clone+cleanup harness
+// behind the Git, Helm, and Kustomize sources — each supplies its own fn to
+// parse or render the checked-out files.
+//
+// The checkout is removed via a deferred cleanup whose failure is surfaced on
+// the (named) error return when fn otherwise succeeded — this controller clones
+// on every reconcile, so a silently-leaked temp directory would accumulate.
+func withCheckout(ctx context.Context, url, ref, path string, clone CloneFunc, fn func(loadPath string) ([]kdsource.Resource, error)) (resources []kdsource.Resource, err error) {
+	if clone == nil {
+		clone = gitClone
+	}
 	dir, err := os.MkdirTemp("", "kube-drift-git-")
 	if err != nil {
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() {
+		if rerr := os.RemoveAll(dir); rerr != nil && err == nil {
+			err = fmt.Errorf("cleanup checkout %s: %w", dir, rerr)
+		}
+	}()
 
-	ctx := g.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := g.clone(ctx, dir, g.URL, g.Ref); err != nil {
-		return nil, fmt.Errorf("clone %s: %w", g.URL, err)
+	if err := clone(ctx, dir, url, ref); err != nil {
+		return nil, fmt.Errorf("clone %s: %w", url, err)
 	}
 
-	loadPath, err := resolveSubPath(dir, g.Path)
+	loadPath, err := resolveSubPath(dir, path)
 	if err != nil {
 		return nil, err
 	}
-	return kdsource.NewFileSource(loadPath).Load()
+	return fn(loadPath)
 }
 
 // resolveSubPath joins root with the user-supplied sub-path using SecureJoin,

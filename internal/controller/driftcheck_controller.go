@@ -182,6 +182,37 @@ func (r *DriftCheckReconciler) buildSource(ctx context.Context, dc *driftv1alpha
 			return nil, fmt.Errorf("source.git.url is required when type is Git")
 		}
 		return driftsource.NewGitSource(ctx, g.URL, g.Ref, g.Path, r.GitCloner), nil
+	case driftv1alpha1.SourceTypeHelm:
+		h := dc.Spec.Source.Helm
+		if h == nil {
+			return nil, fmt.Errorf("source.helm is required when type is Helm")
+		}
+		if h.Git.URL == "" {
+			return nil, fmt.Errorf("source.helm.git.url is required when type is Helm")
+		}
+		releaseName := h.ReleaseName
+		if releaseName == "" {
+			releaseName = dc.Name
+		}
+		namespace := h.Namespace
+		if namespace == "" {
+			namespace = dc.Namespace
+		}
+		var values []byte
+		if h.Values != nil {
+			values = h.Values.Raw
+		}
+		return driftsource.NewHelmSource(ctx, h.Git.URL, h.Git.Ref, h.Git.Path,
+			releaseName, namespace, values, h.ValuesFiles, r.GitCloner), nil
+	case driftv1alpha1.SourceTypeKustomize:
+		k := dc.Spec.Source.Kustomize
+		if k == nil {
+			return nil, fmt.Errorf("source.kustomize is required when type is Kustomize")
+		}
+		if k.Git.URL == "" {
+			return nil, fmt.Errorf("source.kustomize.git.url is required when type is Kustomize")
+		}
+		return driftsource.NewKustomizeSource(ctx, k.Git.URL, k.Git.Ref, k.Git.Path, r.GitCloner), nil
 	default:
 		return nil, fmt.Errorf("unknown source type %q", dc.Spec.Source.Type)
 	}

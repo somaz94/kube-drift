@@ -14,9 +14,26 @@ spec:
     # --- Or load the desired manifests from a Git repository instead: ---
     # type: Git
     # git:
-    #   url: https://github.com/somaz94/kube-drift.git   # anonymous clone (public repos only in v0.1)
+    #   url: https://github.com/somaz94/kube-drift.git   # anonymous clone (public repos only)
     #   ref: main                                        # branch, tag, or commit; omit for the default branch
     #   path: config/samples                             # sub-directory holding the plain-YAML manifests
+    # --- Or render a Helm chart from a Git repository in-process: ---
+    # type: Helm
+    # helm:
+    #   git:
+    #     url: https://github.com/example/charts.git
+    #     ref: main
+    #     path: charts/myapp                             # directory containing Chart.yaml
+    #   releaseName: myapp                               # defaults to the DriftCheck name
+    #   valuesFiles: [values-prod.yaml]                  # relative to the chart dir, merged in order
+    #   values: { replicaCount: 3 }                      # inline overrides, applied last
+    # --- Or build a Kustomize overlay from a Git repository in-process: ---
+    # type: Kustomize
+    # kustomize:
+    #   git:
+    #     url: https://github.com/example/config.git
+    #     ref: main
+    #     path: overlays/prod                            # directory containing kustomization.yaml
   # Optionally narrow which resources are compared.
   target:
     namespaces:

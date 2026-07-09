@@ -151,11 +151,93 @@ spec:
                     required:
                     - url
                     type: object
+                  helm:
+                    description: Helm configures a Helm-chart source. Required when
+                      Type is "Helm".
+                    properties:
+                      git:
+                        description: |-
+                          Git locates the chart. Path points at the chart directory within the
+                          repository (the directory containing Chart.yaml).
+                        properties:
+                          path:
+                            description: |-
+                              Path is the directory within the repository holding the manifests.
+                              Defaults to the repository root.
+                            type: string
+                          ref:
+                            description: |-
+                              Ref is the branch, tag, or commit to check out. Defaults to the
+                              repository's default branch when empty.
+                            type: string
+                          url:
+                            description: URL is the clone URL of the repository.
+                            minLength: 1
+                            type: string
+                        required:
+                        - url
+                        type: object
+                      namespace:
+                        description: |-
+                          Namespace is the release namespace used for rendering (`.Release.Namespace`).
+                          Defaults to the DriftCheck's namespace.
+                        type: string
+                      releaseName:
+                        description: |-
+                          ReleaseName is the release name used for rendering (`.Release.Name`).
+                          Defaults to the DriftCheck's name.
+                        type: string
+                      values:
+                        description: |-
+                          Values holds inline chart values that override the chart defaults and any
+                          ValuesFiles.
+                        x-kubernetes-preserve-unknown-fields: true
+                      valuesFiles:
+                        description: |-
+                          ValuesFiles lists values files (relative to the chart directory) merged in
+                          order before Values.
+                        items:
+                          type: string
+                        type: array
+                    required:
+                    - git
+                    type: object
+                  kustomize:
+                    description: Kustomize configures a Kustomize source. Required
+                      when Type is "Kustomize".
+                    properties:
+                      git:
+                        description: |-
+                          Git locates the overlay. Path points at the directory holding the
+                          kustomization.yaml within the repository.
+                        properties:
+                          path:
+                            description: |-
+                              Path is the directory within the repository holding the manifests.
+                              Defaults to the repository root.
+                            type: string
+                          ref:
+                            description: |-
+                              Ref is the branch, tag, or commit to check out. Defaults to the
+                              repository's default branch when empty.
+                            type: string
+                          url:
+                            description: URL is the clone URL of the repository.
+                            minLength: 1
+                            type: string
+                        required:
+                        - url
+                        type: object
+                    required:
+                    - git
+                    type: object
                   type:
                     description: Type selects the source backend.
                     enum:
                     - Git
                     - ConfigMap
+                    - Helm
+                    - Kustomize
                     type: string
                 required:
                 - type
@@ -165,6 +247,10 @@ spec:
                   rule: self.type != 'ConfigMap' || has(self.configMap)
                 - message: git is required when type is Git
                   rule: self.type != 'Git' || has(self.git)
+                - message: helm is required when type is Helm
+                  rule: self.type != 'Helm' || has(self.helm)
+                - message: kustomize is required when type is Kustomize
+                  rule: self.type != 'Kustomize' || has(self.kustomize)
               target:
                 description: Target narrows which resources are compared.
                 properties:

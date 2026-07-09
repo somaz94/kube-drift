@@ -2,7 +2,7 @@
 
 Kubernetes operator that detects configuration drift between desired-state manifests and the live cluster on a schedule. The in-cluster counterpart to the `kube-diff` CLI. Kubebuilder v4 project (controller-runtime).
 
-> **Maturity**: early scaffold (v0.1.0). The `DriftCheck` CRD and operator skeleton install and run, but the reconcile logic is a **stub** — no drift detection yet. Do not assume working comparison behavior when editing.
+> **Maturity**: working operator (v0.1.x released; v0.2 features on `main`). Drift detection runs against `ConfigMap`, `Git`, `Helm`, and `Kustomize` sources, records results into `status`, exposes Prometheus metrics, and sends webhook notifications. Git clones are anonymous (public repos only).
 
 <br/>
 
@@ -32,8 +32,12 @@ api/v1alpha1/
   groupversion_info.go             # GroupVersion registration
   zz_generated.deepcopy.go         # Generated DeepCopy methods
 internal/controller/
-  driftcheck_controller.go         # Reconciler — STUB (Phase 2 wires it to the kube-diff engine)
-  driftcheck_controller_test.go
+  driftcheck_controller.go         # Reconciler — source → kube-diff engine → status + metrics
+  notify.go                        # Webhook notification dispatch (dedup, resolved transition)
+  *_test.go
+internal/source/                   # Git clone + in-process Helm/Kustomize rendering
+internal/metrics/                  # kube_drift_resources gauge
+internal/notify/                   # Slack/Generic webhook sender
 config/
   crd/bases/                       # Generated CRD YAML
   default/                         # Main Kustomize overlay
@@ -49,28 +53,28 @@ hack/                              # boilerplate.go.txt, bump-version.sh
 ## Key Concepts
 
 - **CRD**: `DriftCheck` (apiGroup `drift.somaz.io`, version `v1alpha1`).
-  - `spec.source` — `{ type: Git|ConfigMap, git: {url,ref,path}, configMap: {name,namespace,key} }` — desired plain-YAML manifests.
+  - `spec.source` — `{ type: Git|ConfigMap|Helm|Kustomize, git, configMap, helm, kustomize }`. `Helm`/`Kustomize` source their files from a nested `git` block and render in-process. `spec.notify.webhooks[]` (Slack/Generic, url or urlSecretRef) sends a message when the drift state changes (deduped via `status.lastNotifiedHash`).
   - `spec.target` — `{ namespaces: [], labelSelector: {} }` — narrows which live resources are compared.
   - `spec.interval` — re-evaluation cadence (default `5m`).
-  - `status` — `lastCheckedAt`, `driftedResources[]` ({apiVersion,kind,name,namespace,status}), `summary` {changed,new,deleted,unchanged}, `observedGeneration`, `conditions`.
+  - `status` — `lastCheckedAt`, `driftedResources[]` ({apiVersion,kind,name,namespace,status}), `summary` {changed,new,deleted,unchanged}, `observedGeneration`, `lastNotifiedHash`, `conditions`.
   - Per-resource drift status enum: `unchanged | changed | new | deleted`.
-- **kube-diff dependency (Phase 2)**: the reconcile logic will import `github.com/somaz94/kube-diff/pkg/{engine,diff,source,cluster}` and call `engine.Compare(...)` → `[]*diff.Result`, then map results into `DriftCheck` status. This import is **not wired yet** — the controller is a stub. Do not reimplement comparison here; reuse the kube-diff engine.
-- **v0.1 scope**: ConfigMap sources first; Git sources come later.
+- **kube-diff dependency**: the reconcile logic imports `github.com/somaz94/kube-diff/pkg/{engine,diff,source,cluster}` and calls `engine.Run(...)` → `[]*diff.Result`, then maps results into `DriftCheck` status. Do not reimplement comparison here; reuse the kube-diff engine.
+- **In-process rendering**: `internal/source` renders Helm charts (Helm SDK: `loader`/`chartutil`/`engine`) and Kustomize overlays (`krusty`/`filesys`) from a Git checkout — **no shell-out** (kube-diff's own `helm`/`kustomize` sources shell out and are unused here). `withCheckout` in `git.go` is the shared clone+cleanup harness.
 - **Envtest**: unit tests use controller-runtime envtest (fake API server).
 - **Distroless**: image uses `gcr.io/distroless/static:nonroot`.
 - **git-cliff**: release notes generated from conventional commits.
 
 <br/>
 
-## Phase 2 Plan (reconcile logic)
+## Reconcile flow
 
-The current `Reconcile` only fetches the `DriftCheck` and logs. To implement drift detection:
+`Reconcile` (in `driftcheck_controller.go`):
 
-1. Load desired manifests from `spec.source` (start with `ConfigMap`).
-2. Read live objects scoped by `spec.target`.
-3. Call `engine.Compare(...)` from kube-diff → `[]*diff.Result`.
-4. Classify each result (changed/new/deleted/unchanged), populate `status.driftedResources` + `status.summary`, stamp `lastCheckedAt` and `observedGeneration`.
-5. Requeue after `spec.interval`.
+1. Load desired manifests from `spec.source` via `buildSource` (ConfigMap / Git / Helm / Kustomize).
+2. Read live objects via the kube-diff cluster fetcher (built from the manager's rest.Config).
+3. Call `engine.Run(...)` from kube-diff → `[]*diff.Result`.
+4. Classify each result (changed/new/deleted/unchanged), populate `status.driftedResources` + `status.summary`, stamp `lastCheckedAt` and `observedGeneration`, set the `Ready` condition.
+5. Record metrics, dispatch webhook notifications (`notify.go`, deduped via `status.lastNotifiedHash`), requeue after `spec.interval`.
 
 <br/>
 
@@ -78,7 +82,8 @@ The current `Reconcile` only fetches the `DriftCheck` and logs. To implement dri
 
 - **Helm CRD sync**: CRDs in `helm/kube-drift/crds/` must match `config/crd/bases/` after any CRD change.
 - **Codegen**: always run `make manifests generate` after editing `api/v1alpha1/types.go`.
-- **e2e is gated**: `test-e2e.yml` triggers on `workflow_dispatch` only — the stub controller has no behavior to exercise end-to-end. Restore push/PR triggers when Phase 2 (test/e2e + test/utils + metrics RBAC) lands.
+- **Helm chart RBAC sync**: `helm/kube-drift/templates/rbac.yaml` (hand-written) must match the generated `config/rbac/role.yaml` after any `+kubebuilder:rbac` marker change.
+- **In-process rendering, not shell-out**: Helm/Kustomize sources render with the Helm SDK / Kustomize API in-process. Never shell out to `helm`/`kustomize` — they are absent from the distroless image. (kube-diff's own `pkg/source/{helm,kustomize}.go` DO shell out; those are unused here.)
 - **ARG re-declaration**: build args must be re-declared after each `FROM` in the multi-stage Dockerfile.
 
 <br/>

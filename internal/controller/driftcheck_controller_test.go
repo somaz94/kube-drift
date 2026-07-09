@@ -211,6 +211,128 @@ func TestReconcile_GitSourceDetectsDrift(t *testing.T) {
 	}
 }
 
+func writeChartAt(t *testing.T, base string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(base, "templates"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(base, "Chart.yaml"),
+		[]byte("apiVersion: v2\nname: demo\nversion: 0.1.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(base, "templates", "cm.yaml"),
+		[]byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: {{ .Release.Name }}-cm\n  namespace: default\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReconcile_HelmSourceDetectsDrift(t *testing.T) {
+	scheme := newScheme(t)
+	dc := &myv1.DriftCheck{
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		Spec: myv1.DriftCheckSpec{
+			Source: myv1.Source{
+				Type: myv1.SourceTypeHelm,
+				Helm: &myv1.HelmSource{
+					Git:         myv1.GitSource{URL: "https://example.com/repo.git", Path: "chart"},
+					ReleaseName: "rel",
+				},
+			},
+		},
+	}
+	r := reconcilerFor(scheme, &fakeFetcher{}, dc) // live empty → rendered CM is "new"
+	r.GitCloner = func(_ context.Context, dir, _, _ string) error {
+		writeChartAt(t, filepath.Join(dir, "chart"))
+		return nil
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+	}); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	var got myv1.DriftCheck
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	if got.Status.Summary.New != 1 {
+		t.Errorf("summary = %+v, want new=1 (rel-cm)", got.Status.Summary)
+	}
+}
+
+func TestReconcile_KustomizeSourceDetectsDrift(t *testing.T) {
+	scheme := newScheme(t)
+	dc := &myv1.DriftCheck{
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		Spec: myv1.DriftCheckSpec{
+			Source: myv1.Source{
+				Type:      myv1.SourceTypeKustomize,
+				Kustomize: &myv1.KustomizeSource{Git: myv1.GitSource{URL: "https://example.com/repo.git", Path: "overlay"}},
+			},
+		},
+	}
+	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
+	r.GitCloner = func(_ context.Context, dir, _, _ string) error {
+		base := filepath.Join(dir, "overlay")
+		if err := os.MkdirAll(base, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(base, "kustomization.yaml"),
+			[]byte("resources:\n- cm.yaml\nnamePrefix: prod-\n"), 0o644); err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(base, "cm.yaml"),
+			[]byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: config\n  namespace: default\n"), 0o644)
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+	}); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	var got myv1.DriftCheck
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	if got.Status.Summary.New != 1 {
+		t.Errorf("summary = %+v, want new=1 (prod-config)", got.Status.Summary)
+	}
+}
+
+func TestReconcile_HelmMissingBlock(t *testing.T) {
+	scheme := newScheme(t)
+	dc := &myv1.DriftCheck{
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		Spec:       myv1.DriftCheckSpec{Source: myv1.Source{Type: myv1.SourceTypeHelm}},
+	}
+	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+	}); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	var got myv1.DriftCheck
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != "SourceError" {
+		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
+	}
+}
+
+func TestReconcile_KustomizeMissingBlock(t *testing.T) {
+	scheme := newScheme(t)
+	dc := &myv1.DriftCheck{
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		Spec:       myv1.DriftCheckSpec{Source: myv1.Source{Type: myv1.SourceTypeKustomize}},
+	}
+	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+	}); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	var got myv1.DriftCheck
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != "SourceError" {
+		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
+	}
+}
+
 func TestReconcile_GitSourceMissingGitBlock(t *testing.T) {
 	scheme := newScheme(t)
 	// Type is Git but the git block is absent → source resolution fails.

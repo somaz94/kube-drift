@@ -41,9 +41,11 @@ kubectl -n kube-drift-system get deploy,pod
 
 A `DriftCheck` (`drift.somaz.io/v1alpha1`) declares one drift comparison:
 
-- **`spec.source`** — where the *desired* manifests come from. Two backends in v0.1, both **plain YAML only**:
-  - `ConfigMap` — manifests stored in a ConfigMap's data key(s)
-  - `Git` — manifests in a Git repository, cloned at a `ref` and read from a `path`
+- **`spec.source`** — where the *desired* manifests come from:
+  - `ConfigMap` — plain-YAML manifests stored in a ConfigMap's data key(s)
+  - `Git` — plain-YAML manifests in a Git repository, cloned at a `ref` and read from a `path`
+  - `Helm` — a Helm chart in a Git repository, rendered **in-process** with the given release name / namespace / values
+  - `Kustomize` — a Kustomize overlay in a Git repository, built **in-process**
 - **`spec.target`** — narrows which live resources are compared (`namespaces`, `labelSelector`). Empty means each manifest is matched by its own group/kind/namespace/name.
 - **`spec.interval`** — how often the check re-runs (default `5m`).
 - **`status`** — the result: a per-resource `driftedResources[]` list, a rolled-up `summary`, `lastCheckedAt`, and standard `conditions`.
@@ -101,7 +103,7 @@ Since `app-config` does not exist in the cluster yet, it surfaces as **new** (de
 
 ## Example 2 — Git source
 
-The desired manifests are cloned from a Git repository. Only **plain YAML** under `path` is loaded — there is no Helm or Kustomize rendering in v0.1.
+The desired manifests are cloned from a Git repository. Only **plain YAML** under `path` is loaded — for chart / overlay rendering use the `Helm` or `Kustomize` source instead (Examples 3 and 4).
 
 ```yaml
 apiVersion: drift.somaz.io/v1alpha1
@@ -122,6 +124,67 @@ spec:
 - **`ref`** accepts a branch name, a tag, or a commit SHA. A non-default branch resolves via its `origin/<ref>` remote-tracking form.
 - **`path`** is a sub-directory within the repository. Only `.yaml` / `.yml` files are parsed; other files are ignored.
 - Clones are **anonymous** — private repositories are not yet supported.
+
+<br/>
+
+## Example 3 — Helm source
+
+Render a Helm chart from a Git repository **in-process** (no `helm` binary in the controller image) and compare the rendered manifests against the cluster.
+
+```yaml
+apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: driftcheck-helm
+  namespace: default
+spec:
+  source:
+    type: Helm
+    helm:
+      git:
+        url: https://github.com/example/charts.git
+        ref: main
+        path: charts/myapp        # directory containing Chart.yaml
+      releaseName: myapp           # .Release.Name; defaults to the DriftCheck name
+      namespace: default           # .Release.Namespace; defaults to the DriftCheck namespace
+      valuesFiles:                 # merged in order, relative to the chart directory
+        - values-prod.yaml
+      values:                      # inline overrides applied last (highest precedence)
+        replicaCount: 3
+        image:
+          tag: v1.4.0
+  interval: 10m
+```
+
+- Values precedence: chart defaults → `valuesFiles` (in order) → inline `values`.
+- Rendering uses the Helm SDK render engine; `NOTES.txt` and template partials (`_*.tpl`) are excluded, matching `helm template`.
+- The chart must be **self-contained** — chart dependencies must be vendored under `charts/` (there is no `helm dependency update` step).
+
+<br/>
+
+## Example 4 — Kustomize source
+
+Build a Kustomize overlay from a Git repository **in-process** (no `kustomize` / `kubectl` binary in the controller image).
+
+```yaml
+apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: driftcheck-kustomize
+  namespace: default
+spec:
+  source:
+    type: Kustomize
+    kustomize:
+      git:
+        url: https://github.com/example/config.git
+        ref: main
+        path: overlays/prod        # directory containing kustomization.yaml
+  interval: 10m
+```
+
+- Uses the default (root-only) load restrictions — a kustomization cannot read files outside its own directory tree.
+- Remote bases referenced by URL are subject to the same anonymous-clone limitation as the Git source.
 
 <br/>
 
@@ -249,6 +312,6 @@ kubectl -n kube-drift-system logs deploy/kube-drift-controller-manager -f
 
 ## Limitations
 
-- **Plain YAML only** — Helm charts and Kustomize bases are not rendered (planned for a later release).
-- **Git is anonymous** — private repositories (credentials) are not yet supported.
+- **Git is anonymous** — private repositories (credentials) are not yet supported, including remote Kustomize bases and un-vendored Helm chart dependencies.
+- **Self-contained Helm charts** — chart dependencies must be vendored under `charts/` (no `helm dependency update` step).
 - **ConfigMap read RBAC by default** — comparing other kinds requires granting read access at install time (see [RBAC](#rbac-for-non-configmap-kinds)).

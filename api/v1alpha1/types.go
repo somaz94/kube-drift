@@ -1,11 +1,12 @@
 package v1alpha1
 
 import (
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // SourceType selects where the desired manifests come from.
-// +kubebuilder:validation:Enum=Git;ConfigMap
+// +kubebuilder:validation:Enum=Git;ConfigMap;Helm;Kustomize
 type SourceType string
 
 const (
@@ -13,6 +14,11 @@ const (
 	SourceTypeGit SourceType = "Git"
 	// SourceTypeConfigMap loads desired manifests from a ConfigMap.
 	SourceTypeConfigMap SourceType = "ConfigMap"
+	// SourceTypeHelm renders a Helm chart (from a Git repository) in-process.
+	SourceTypeHelm SourceType = "Helm"
+	// SourceTypeKustomize builds a Kustomize overlay (from a Git repository)
+	// in-process.
+	SourceTypeKustomize SourceType = "Kustomize"
 )
 
 // GitSource points at plain-YAML manifests in a Git repository.
@@ -44,9 +50,45 @@ type ConfigMapSource struct {
 	Key string `json:"key,omitempty"`
 }
 
+// HelmSource renders a Helm chart, sourced from a Git repository, in-process
+// (no `helm` binary or shell-out). The rendered manifests are compared against
+// the live cluster.
+type HelmSource struct {
+	// Git locates the chart. Path points at the chart directory within the
+	// repository (the directory containing Chart.yaml).
+	Git GitSource `json:"git"`
+
+	// ReleaseName is the release name used for rendering (`.Release.Name`).
+	// Defaults to the DriftCheck's name.
+	ReleaseName string `json:"releaseName,omitempty"`
+
+	// Namespace is the release namespace used for rendering (`.Release.Namespace`).
+	// Defaults to the DriftCheck's namespace.
+	Namespace string `json:"namespace,omitempty"`
+
+	// Values holds inline chart values that override the chart defaults and any
+	// ValuesFiles.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Values *apiextensionsv1.JSON `json:"values,omitempty"`
+
+	// ValuesFiles lists values files (relative to the chart directory) merged in
+	// order before Values.
+	ValuesFiles []string `json:"valuesFiles,omitempty"`
+}
+
+// KustomizeSource builds a Kustomize overlay, sourced from a Git repository,
+// in-process (no `kustomize`/`kubectl` binary or shell-out).
+type KustomizeSource struct {
+	// Git locates the overlay. Path points at the directory holding the
+	// kustomization.yaml within the repository.
+	Git GitSource `json:"git"`
+}
+
 // Source describes the desired-state manifests to compare against the cluster.
 // +kubebuilder:validation:XValidation:rule="self.type != 'ConfigMap' || has(self.configMap)",message="configMap is required when type is ConfigMap"
 // +kubebuilder:validation:XValidation:rule="self.type != 'Git' || has(self.git)",message="git is required when type is Git"
+// +kubebuilder:validation:XValidation:rule="self.type != 'Helm' || has(self.helm)",message="helm is required when type is Helm"
+// +kubebuilder:validation:XValidation:rule="self.type != 'Kustomize' || has(self.kustomize)",message="kustomize is required when type is Kustomize"
 type Source struct {
 	// Type selects the source backend.
 	Type SourceType `json:"type"`
@@ -56,6 +98,12 @@ type Source struct {
 
 	// ConfigMap configures a ConfigMap source. Required when Type is "ConfigMap".
 	ConfigMap *ConfigMapSource `json:"configMap,omitempty"`
+
+	// Helm configures a Helm-chart source. Required when Type is "Helm".
+	Helm *HelmSource `json:"helm,omitempty"`
+
+	// Kustomize configures a Kustomize source. Required when Type is "Kustomize".
+	Kustomize *KustomizeSource `json:"kustomize,omitempty"`
 }
 
 // WebhookType selects the payload format posted to a notification webhook.
