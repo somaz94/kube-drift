@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased (2026-07-27)
+
+### Builds
+
+- **deps:** bump actions/setup-go from 6 to 7 (#3) ([#3](https://github.com/somaz94/kube-drift/pull/3)) ([fc11af9](https://github.com/somaz94/kube-drift/commit/fc11af989c92e38a4244de36346b0bc0699caad1))
+- **deps:** bump the go-minor group with 2 updates (#2) ([#2](https://github.com/somaz94/kube-drift/pull/2)) ([961eae4](https://github.com/somaz94/kube-drift/commit/961eae4400b1535eafeff5a0fe25890531d97158))
+- **deps:** bump the go-minor group with 5 updates (#1) ([#1](https://github.com/somaz94/kube-drift/pull/1)) ([53ca109](https://github.com/somaz94/kube-drift/commit/53ca109c354f50efc4e925d34bdafe25ee32c185))
+
+### Continuous Integration
+
+- remove DCO workflow ([b910060](https://github.com/somaz94/kube-drift/commit/b910060794d9cf3682b98cc0bc7292f9fd246773))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.4.0](https://github.com/somaz94/kube-drift/compare/v0.3.0...v0.4.0) (2026-07-09)
 
 ### Features
