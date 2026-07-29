@@ -250,7 +250,7 @@ func knownHostsCallback(kh []byte) (xssh.HostKeyCallback, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create known_hosts temp file: %w", err)
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if _, err := f.Write(kh); err != nil {
 		_ = f.Close()
 		return nil, fmt.Errorf("write known_hosts temp file: %w", err)

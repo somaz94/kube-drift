@@ -13,6 +13,9 @@ var (
 	GroupVersion = schema.GroupVersion{Group: "drift.somaz.io", Version: "v1alpha1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionResource scheme.
+	// SA1019: scheme.Builder is the kubebuilder scaffold pattern for api
+	// packages and has no drop-in replacement.
+	//nolint:staticcheck
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
 
 	// AddToScheme adds the types in this group-version to the given scheme.

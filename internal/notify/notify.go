@@ -102,7 +102,7 @@ func (s *Sender) Send(ctx context.Context, wh Webhook, ev Event) error {
 	if err != nil {
 		return fmt.Errorf("post webhook: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// Drain the body so the connection can be reused.
 	_, _ = io.Copy(io.Discard, resp.Body)
 

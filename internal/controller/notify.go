@@ -95,7 +95,7 @@ func (r *DriftCheckReconciler) resolveWebhookURL(ctx context.Context, ns string,
 		}
 		url := strings.TrimSpace(string(v))
 		if url == "" {
-			return "", fmt.Errorf("Secret %s/%s key %q is empty", ns, ref.Name, ref.Key)
+			return "", fmt.Errorf("secret %s/%s key %q is empty", ns, ref.Name, ref.Key)
 		}
 		return url, nil
 	}

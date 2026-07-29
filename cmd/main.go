@@ -108,6 +108,9 @@ func main() {
 		Fetcher:  fetcher,
 		Metrics:  metrics.NewRecorder(),
 		Notifier: notify.NewSender(),
+		// SA1019: GetEventRecorder returns the events.k8s.io/v1 recorder, whose
+		// Eventf signature differs. Migrating the event surface is tracked separately.
+		//nolint:staticcheck
 		Recorder: mgr.GetEventRecorderFor("driftcheck-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DriftCheck")
