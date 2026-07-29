@@ -6,7 +6,7 @@ How to install `kube-drift`, declare a `DriftCheck`, and read the drift it detec
 
 ## Prerequisites
 
-- A Kubernetes cluster (v1.16+) and `kubectl` pointed at it
+- A Kubernetes cluster (v1.25+, for the CRD's CEL validation rules) and `kubectl` pointed at it
 - `make` and Go (only for the `make install` / `make deploy` build path)
 - For a `Git` source: the cluster nodes must have outbound network access to the repository host
 

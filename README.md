@@ -63,7 +63,7 @@ Each `DriftCheck` drives the following loop:
 
 ### Prerequisites
 
-- Kubernetes v1.16+
+- Kubernetes v1.25+ (the CRD ships CEL validation rules, which require `x-kubernetes-validations`)
 - `kubectl` configured against the target cluster
 - Helm 3 (for the chart install path)
 
