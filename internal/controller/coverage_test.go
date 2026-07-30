@@ -49,14 +49,14 @@ func reconcileExpectingSourceError(t *testing.T, r *DriftCheckReconciler) {
 	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Status.Conditions) == 0 || got.Status.Conditions[0].Reason != "SourceError" {
+	if len(got.Status.Conditions) == 0 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("want a SourceError condition, got %+v", got.Status.Conditions)
 	}
 }
 
 func TestResolveGitAuth_BasicMissingUsername(t *testing.T) {
 	scheme := newScheme(t)
-	sec := gitAuthSecret("creds", map[string][]byte{"password": []byte("tok")}) // no username
+	sec := gitAuthSecret("creds", map[string][]byte{"password": []byte(testToken)}) // no username
 	r := reconcilerFor(scheme, &fakeFetcher{}, sec)
 	if _, err := r.resolveGitAuth(context.Background(), "default",
 		&myv1.GitAuth{Type: myv1.GitAuthBasic, SecretRef: myv1.LocalSecretRef{Name: "creds"}}); err == nil {

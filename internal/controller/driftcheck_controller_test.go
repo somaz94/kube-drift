@@ -23,6 +23,11 @@ import (
 	driftsource "github.com/somaz94/kube-drift/internal/source"
 )
 
+// reasonSourceError is the Ready-condition Reason the reconciler records when
+// source resolution fails permanently (see permanentFail in
+// driftcheck_controller.go).
+const reasonSourceError = "SourceError"
+
 // fakeFetcher implements kube-diff's cluster.ResourceFetcher. A resource keyed
 // by name is returned as-is; anything else returns notFound (→ "new").
 type fakeFetcher struct {
@@ -103,7 +108,7 @@ func TestReconcile_MissingConfigMap_SetsNotReady(t *testing.T) {
 		t.Fatal(err)
 	}
 	cond := got.Status.Conditions
-	if len(cond) != 1 || cond[0].Status != metav1.ConditionFalse || cond[0].Reason != "SourceError" {
+	if len(cond) != 1 || cond[0].Status != metav1.ConditionFalse || cond[0].Reason != reasonSourceError {
 		t.Errorf("expected a False/SourceError condition, got %+v", cond)
 	}
 }
@@ -310,7 +315,7 @@ func TestReconcile_HelmMissingBlock(t *testing.T) {
 	}
 	var got myv1.DriftCheck
 	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
-	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != "SourceError" {
+	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}
 }
@@ -329,7 +334,7 @@ func TestReconcile_KustomizeMissingBlock(t *testing.T) {
 	}
 	var got myv1.DriftCheck
 	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
-	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != "SourceError" {
+	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}
 }
@@ -350,7 +355,7 @@ func TestReconcile_GitSourceMissingGitBlock(t *testing.T) {
 	}
 	var got myv1.DriftCheck
 	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
-	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != "SourceError" {
+	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}
 }
@@ -372,7 +377,7 @@ func TestReconcile_GitSourceMissingURL(t *testing.T) {
 	}
 	var got myv1.DriftCheck
 	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
-	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != "SourceError" {
+	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}
 }
@@ -416,7 +421,7 @@ func TestReconcile_UnknownSourceType(t *testing.T) {
 	}
 	var got myv1.DriftCheck
 	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
-	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != "SourceError" {
+	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}
 }

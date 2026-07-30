@@ -16,6 +16,10 @@ import (
 	driftsource "github.com/somaz94/kube-drift/internal/source"
 )
 
+// testToken is the credential value held by the Git auth Secret fixtures — the
+// basic-auth password and the bearer token are both this value.
+const testToken = "tok"
+
 func gitAuthSecret(name string, data map[string][]byte) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
@@ -46,7 +50,7 @@ func TestResolveGitAuth_Basic(t *testing.T) {
 	if got == nil || got.Basic == nil {
 		t.Fatalf("got %+v, want a Basic auth", got)
 	}
-	if got.Basic.Username != "u" || got.Basic.Password != "tok" {
+	if got.Basic.Username != "u" || got.Basic.Password != testToken {
 		t.Errorf("creds = %+v, want {u tok} (whitespace not trimmed?)", got.Basic)
 	}
 }
@@ -72,7 +76,7 @@ func TestResolveGitAuth_Bearer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if got == nil || got.Bearer != "tok" {
+	if got == nil || got.Bearer != testToken {
 		t.Errorf("got %+v, want Bearer tok", got)
 	}
 }
@@ -152,7 +156,7 @@ func TestReconcile_GitSourceThreadsAuth(t *testing.T) {
 			Interval: metav1.Duration{Duration: 5 * time.Minute},
 		},
 	}
-	sec := gitAuthSecret("creds", map[string][]byte{"username": []byte("u"), "password": []byte("tok")})
+	sec := gitAuthSecret("creds", map[string][]byte{"username": []byte("u"), "password": []byte(testToken)})
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc, sec)
 
 	var gotAuth *driftsource.GitAuth
@@ -171,7 +175,7 @@ func TestReconcile_GitSourceThreadsAuth(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
-	if gotAuth == nil || gotAuth.Basic == nil || gotAuth.Basic.Username != "u" || gotAuth.Basic.Password != "tok" {
+	if gotAuth == nil || gotAuth.Basic == nil || gotAuth.Basic.Username != "u" || gotAuth.Basic.Password != testToken {
 		t.Errorf("cloner received auth %+v, want Basic{u tok}", gotAuth)
 	}
 }

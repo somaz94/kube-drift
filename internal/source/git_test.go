@@ -8,6 +8,10 @@ import (
 	"testing"
 )
 
+// kindConfigMap is the Kubernetes Kind the manifest fixtures in this package
+// render to, asserted on the loaded resources.
+const kindConfigMap = "ConfigMap"
+
 // fakeClone writes the given files (relative path → contents) into the clone
 // directory instead of reaching the network, letting Load run offline.
 func fakeClone(files map[string]string) CloneFunc {
@@ -39,7 +43,7 @@ func TestGitSource_Load(t *testing.T) {
 	if len(resources) != 1 {
 		t.Fatalf("got %d resources, want 1: %+v", len(resources), resources)
 	}
-	if resources[0].Kind != "ConfigMap" || resources[0].Name != "app" {
+	if resources[0].Kind != kindConfigMap || resources[0].Name != "app" {
 		t.Errorf("resource = %+v, want ConfigMap/app", resources[0])
 	}
 }

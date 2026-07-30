@@ -275,7 +275,7 @@ func TestHelmSource_Load(t *testing.T) {
 	if len(resources) != 1 {
 		t.Fatalf("got %d resources, want 1", len(resources))
 	}
-	if resources[0].Kind != "ConfigMap" || resources[0].Name != "rel-cm" {
+	if resources[0].Kind != kindConfigMap || resources[0].Name != "rel-cm" {
 		t.Errorf("unexpected resource: %+v", resources[0])
 	}
 }
