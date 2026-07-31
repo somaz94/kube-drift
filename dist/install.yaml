@@ -1,0 +1,793 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.4
+  name: driftchecks.drift.somaz.io
+spec:
+  group: drift.somaz.io
+  names:
+    kind: DriftCheck
+    listKind: DriftCheckList
+    plural: driftchecks
+    singular: driftcheck
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.summary.changed
+      name: Drifted
+      type: integer
+    - jsonPath: .status.summary.new
+      name: New
+      type: integer
+    - jsonPath: .status.lastCheckedAt
+      name: Last Checked
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DriftCheck is the Schema for the driftchecks API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DriftCheckSpec defines the desired state of DriftCheck.
+            properties:
+              interval:
+                default: 5m
+                description: Interval is how often the drift check is re-evaluated.
+                type: string
+              notify:
+                description: Notify configures drift notifications. When unset, no
+                  webhooks are called.
+                properties:
+                  webhooks:
+                    description: Webhooks receive a notification whenever the drift
+                      state changes.
+                    items:
+                      description: Webhook is a single notification endpoint.
+                      properties:
+                        type:
+                          default: Generic
+                          description: |-
+                            Type selects the payload format. Slack posts a {"text": ...} message;
+                            Generic posts a structured JSON body.
+                          enum:
+                          - Slack
+                          - Generic
+                          type: string
+                        url:
+                          description: |-
+                            URL is the webhook endpoint. Prefer URLSecretRef for secret URLs such as
+                            Slack incoming webhooks.
+                          type: string
+                        urlSecretRef:
+                          description: |-
+                            URLSecretRef sources the webhook URL from a Secret in the DriftCheck's
+                            namespace. It takes precedence over URL when both are set.
+                          properties:
+                            key:
+                              description: Key selects the entry within the Secret
+                                holding the value.
+                              minLength: 1
+                              type: string
+                            name:
+                              description: Name of the Secret.
+                              minLength: 1
+                              type: string
+                          required:
+                          - key
+                          - name
+                          type: object
+                      type: object
+                      x-kubernetes-validations:
+                      - message: one of url or urlSecretRef is required
+                        rule: has(self.url) || has(self.urlSecretRef)
+                    minItems: 1
+                    type: array
+                required:
+                - webhooks
+                type: object
+              source:
+                description: Source is where the desired-state manifests come from.
+                properties:
+                  configMap:
+                    description: ConfigMap configures a ConfigMap source. Required
+                      when Type is "ConfigMap".
+                    properties:
+                      key:
+                        description: |-
+                          Key selects a single ConfigMap data key. When empty, every key is
+                          concatenated and parsed as a multi-document YAML stream.
+                        type: string
+                      name:
+                        description: Name of the ConfigMap.
+                        minLength: 1
+                        type: string
+                      namespace:
+                        description: Namespace of the ConfigMap. Defaults to the DriftCheck's
+                          namespace.
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  git:
+                    description: Git configures a Git source. Required when Type is
+                      "Git".
+                    properties:
+                      auth:
+                        description: |-
+                          Auth references credentials for cloning a private repository. When unset,
+                          the repository is cloned anonymously.
+                        properties:
+                          secretRef:
+                            description: |-
+                              SecretRef names the Secret in the DriftCheck's namespace holding the
+                              credentials.
+                            properties:
+                              name:
+                                description: Name of the Secret.
+                                minLength: 1
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          type:
+                            description: Type selects the authentication scheme.
+                            enum:
+                            - Basic
+                            - Bearer
+                            - SSH
+                            type: string
+                        required:
+                        - secretRef
+                        - type
+                        type: object
+                      path:
+                        description: |-
+                          Path is the directory within the repository holding the manifests.
+                          Defaults to the repository root.
+                        type: string
+                      ref:
+                        description: |-
+                          Ref is the branch, tag, or commit to check out. Defaults to the
+                          repository's default branch when empty.
+                        type: string
+                      url:
+                        description: URL is the clone URL of the repository.
+                        minLength: 1
+                        type: string
+                    required:
+                    - url
+                    type: object
+                  helm:
+                    description: Helm configures a Helm-chart source. Required when
+                      Type is "Helm".
+                    properties:
+                      dependencyBuild:
+                        description: |-
+                          DependencyBuild fetches the chart's declared dependencies (Chart.yaml
+                          `dependencies`) into charts/ before rendering, when they are not already
+                          vendored. Defaults to false — the chart is expected to ship self-contained
+                          with its dependencies committed under charts/. Enabling it makes the
+                          controller reach each dependency's repository over the network on every
+                          render, so the repositories must be HTTP(S) URLs reachable from the pod.
+                        type: boolean
+                      git:
+                        description: |-
+                          Git locates the chart. Path points at the chart directory within the
+                          repository (the directory containing Chart.yaml).
+                        properties:
+                          auth:
+                            description: |-
+                              Auth references credentials for cloning a private repository. When unset,
+                              the repository is cloned anonymously.
+                            properties:
+                              secretRef:
+                                description: |-
+                                  SecretRef names the Secret in the DriftCheck's namespace holding the
+                                  credentials.
+                                properties:
+                                  name:
+                                    description: Name of the Secret.
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                              type:
+                                description: Type selects the authentication scheme.
+                                enum:
+                                - Basic
+                                - Bearer
+                                - SSH
+                                type: string
+                            required:
+                            - secretRef
+                            - type
+                            type: object
+                          path:
+                            description: |-
+                              Path is the directory within the repository holding the manifests.
+                              Defaults to the repository root.
+                            type: string
+                          ref:
+                            description: |-
+                              Ref is the branch, tag, or commit to check out. Defaults to the
+                              repository's default branch when empty.
+                            type: string
+                          url:
+                            description: URL is the clone URL of the repository.
+                            minLength: 1
+                            type: string
+                        required:
+                        - url
+                        type: object
+                      namespace:
+                        description: |-
+                          Namespace is the release namespace used for rendering (`.Release.Namespace`).
+                          Defaults to the DriftCheck's namespace.
+                        type: string
+                      releaseName:
+                        description: |-
+                          ReleaseName is the release name used for rendering (`.Release.Name`).
+                          Defaults to the DriftCheck's name.
+                        type: string
+                      values:
+                        description: |-
+                          Values holds inline chart values that override the chart defaults and any
+                          ValuesFiles.
+                        x-kubernetes-preserve-unknown-fields: true
+                      valuesFiles:
+                        description: |-
+                          ValuesFiles lists values files (relative to the chart directory) merged in
+                          order before Values.
+                        items:
+                          type: string
+                        type: array
+                    required:
+                    - git
+                    type: object
+                  kustomize:
+                    description: Kustomize configures a Kustomize source. Required
+                      when Type is "Kustomize".
+                    properties:
+                      git:
+                        description: |-
+                          Git locates the overlay. Path points at the directory holding the
+                          kustomization.yaml within the repository.
+                        properties:
+                          auth:
+                            description: |-
+                              Auth references credentials for cloning a private repository. When unset,
+                              the repository is cloned anonymously.
+                            properties:
+                              secretRef:
+                                description: |-
+                                  SecretRef names the Secret in the DriftCheck's namespace holding the
+                                  credentials.
+                                properties:
+                                  name:
+                                    description: Name of the Secret.
+                                    minLength: 1
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                              type:
+                                description: Type selects the authentication scheme.
+                                enum:
+                                - Basic
+                                - Bearer
+                                - SSH
+                                type: string
+                            required:
+                            - secretRef
+                            - type
+                            type: object
+                          path:
+                            description: |-
+                              Path is the directory within the repository holding the manifests.
+                              Defaults to the repository root.
+                            type: string
+                          ref:
+                            description: |-
+                              Ref is the branch, tag, or commit to check out. Defaults to the
+                              repository's default branch when empty.
+                            type: string
+                          url:
+                            description: URL is the clone URL of the repository.
+                            minLength: 1
+                            type: string
+                        required:
+                        - url
+                        type: object
+                    required:
+                    - git
+                    type: object
+                  type:
+                    description: Type selects the source backend.
+                    enum:
+                    - Git
+                    - ConfigMap
+                    - Helm
+                    - Kustomize
+                    type: string
+                required:
+                - type
+                type: object
+                x-kubernetes-validations:
+                - message: configMap is required when type is ConfigMap
+                  rule: self.type != 'ConfigMap' || has(self.configMap)
+                - message: git is required when type is Git
+                  rule: self.type != 'Git' || has(self.git)
+                - message: helm is required when type is Helm
+                  rule: self.type != 'Helm' || has(self.helm)
+                - message: kustomize is required when type is Kustomize
+                  rule: self.type != 'Kustomize' || has(self.kustomize)
+              target:
+                description: Target narrows which resources are compared.
+                properties:
+                  labelSelector:
+                    description: LabelSelector further restricts which desired manifests
+                      are compared.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  namespaces:
+                    description: |-
+                      Namespaces restricts comparison to these namespaces. Empty means the
+                      namespace carried by each manifest is used as-is.
+                    items:
+                      type: string
+                    type: array
+                type: object
+            required:
+            - source
+            type: object
+          status:
+            description: DriftCheckStatus defines the observed state of DriftCheck.
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              driftedResources:
+                description: |-
+                  DriftedResources lists resources whose live state differs from desired.
+                  Unchanged resources are omitted; see Summary for totals.
+                items:
+                  description: DriftedResource identifies a single resource that differs
+                    from its desired state.
+                  properties:
+                    apiVersion:
+                      type: string
+                    kind:
+                      type: string
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                    status:
+                      description: DriftStatus mirrors the per-resource comparison
+                        outcome.
+                      enum:
+                      - unchanged
+                      - changed
+                      - new
+                      - deleted
+                      type: string
+                  required:
+                  - apiVersion
+                  - kind
+                  - name
+                  - status
+                  type: object
+                type: array
+              lastCheckedAt:
+                description: LastCheckedAt is when the drift check last completed.
+                format: date-time
+                type: string
+              lastNotifiedHash:
+                description: |-
+                  LastNotifiedHash fingerprints the drift set last delivered to the
+                  configured webhooks. It prevents re-notifying on every re-check while the
+                  drift state is unchanged; it is empty until the first notification.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the .metadata.generation last reconciled.
+                format: int64
+                type: integer
+              summary:
+                description: Summary tallies every compared resource by outcome.
+                properties:
+                  changed:
+                    type: integer
+                  deleted:
+                    type: integer
+                  new:
+                    type: integer
+                  unchanged:
+                    type: integer
+                required:
+                - changed
+                - deleted
+                - new
+                - unchanged
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: kube-drift
+  name: kube-drift-controller-manager
+  namespace: kube-drift-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: kube-drift
+  name: kube-drift-leader-election-role
+  namespace: kube-drift-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-drift-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+- apiGroups:
+  - drift.somaz.io
+  resources:
+  - driftchecks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - drift.somaz.io
+  resources:
+  - driftchecks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - drift.somaz.io
+  resources:
+  - driftchecks/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-drift-metrics-auth-role
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-drift-metrics-reader
+rules:
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: kube-drift
+  name: kube-drift-leader-election-rolebinding
+  namespace: kube-drift-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kube-drift-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: kube-drift-controller-manager
+  namespace: kube-drift-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-drift-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-drift-manager-role
+subjects:
+- kind: ServiceAccount
+  name: kube-drift-controller-manager
+  namespace: kube-drift-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-drift-metrics-auth-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-drift-metrics-auth-role
+subjects:
+- kind: ServiceAccount
+  name: kube-drift-controller-manager
+  namespace: kube-drift-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: kube-drift
+    control-plane: controller-manager
+  name: kube-drift-controller-manager-metrics-service
+  namespace: kube-drift-system
+spec:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: kube-drift
+    control-plane: controller-manager
+  name: kube-drift-controller-manager
+  namespace: kube-drift-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: controller-manager
+    spec:
+      containers:
+      - args:
+        - --leader-elect=true
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8443
+        command:
+        - /manager
+        image: somaz940/kube-drift:v0.4.0
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        ports:
+        - containerPort: 8443
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: kube-drift-controller-manager
+      terminationGracePeriodSeconds: 10
