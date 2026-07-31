@@ -352,7 +352,7 @@ func configMapManifests(cm *corev1.ConfigMap, key string) ([]byte, error) {
 // tally over every compared resource plus the list of resources that drifted
 // (unchanged resources are omitted from the list).
 func summarize(results []*diff.Result) ([]driftv1alpha1.DriftedResource, driftv1alpha1.DriftSummary) {
-	var drifted []driftv1alpha1.DriftedResource
+	drifted := make([]driftv1alpha1.DriftedResource, 0, len(results))
 	var summary driftv1alpha1.DriftSummary
 	for _, res := range results {
 		switch res.Status {
