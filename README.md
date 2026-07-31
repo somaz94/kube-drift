@@ -69,6 +69,17 @@ Each `DriftCheck` drives the following loop:
 
 <br/>
 
+### Quick Install (kubectl apply)
+
+A consolidated manifest — CRD, RBAC, and controller Deployment — is published at
+[`dist/install.yaml`](dist/install.yaml):
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/somaz94/kube-drift/main/dist/install.yaml
+```
+
+<br/>
+
 ### Install with Kustomize
 
 ```bash
@@ -85,6 +96,24 @@ The chart lives at [`helm/kube-drift/`](helm/kube-drift/):
 ```bash
 helm install kube-drift ./helm/kube-drift \
   --namespace kube-drift-system --create-namespace
+```
+
+<br/>
+
+### Uninstall
+
+Use the counterpart of whichever install path you took:
+
+```bash
+# kubectl
+kubectl delete -f https://raw.githubusercontent.com/somaz94/kube-drift/main/dist/install.yaml
+
+# Kustomize
+make undeploy
+make uninstall
+
+# Helm
+helm uninstall kube-drift --namespace kube-drift-system
 ```
 
 <br/>
