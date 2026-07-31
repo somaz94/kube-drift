@@ -59,7 +59,7 @@ func TestReconcile_NotFound(t *testing.T) {
 	r := &DriftCheckReconciler{Client: cl, Scheme: scheme}
 
 	_, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "nonexistent", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "nonexistent", Namespace: nsDefault},
 	})
 	if err != nil {
 		t.Errorf("Reconcile() error = %v, want nil for not found", err)
@@ -68,11 +68,11 @@ func TestReconcile_NotFound(t *testing.T) {
 
 func newDriftCheck() *myv1.DriftCheck {
 	return &myv1.DriftCheck{
-		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: nsDefault},
 		Spec: myv1.DriftCheckSpec{
 			Source: myv1.Source{
 				Type:      myv1.SourceTypeConfigMap,
-				ConfigMap: &myv1.ConfigMapSource{Name: "desired"},
+				ConfigMap: &myv1.ConfigMapSource{Name: nameDesired},
 			},
 			Interval: metav1.Duration{Duration: 5 * time.Minute},
 		},
@@ -94,7 +94,7 @@ func TestReconcile_MissingConfigMap_SetsNotReady(t *testing.T) {
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
 
 	res, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	})
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v, want nil", err)
@@ -104,7 +104,7 @@ func TestReconcile_MissingConfigMap_SetsNotReady(t *testing.T) {
 	}
 
 	var got myv1.DriftCheck
-	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got); err != nil {
+	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got); err != nil {
 		t.Fatal(err)
 	}
 	cond := got.Status.Conditions
@@ -119,7 +119,7 @@ func TestReconcile_DetectsDrift(t *testing.T) {
 
 	// Desired manifests in the ConfigMap: one existing (will differ) + one absent (new).
 	desired := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "desired", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: nameDesired, Namespace: nsDefault},
 		Data: map[string]string{
 			"manifests.yaml": `apiVersion: v1
 kind: ConfigMap
@@ -140,22 +140,22 @@ metadata:
 
 	// Live cluster: app-config exists with a different value → changed; brand-new absent → new.
 	live := &unstructured.Unstructured{Object: map[string]interface{}{
-		"apiVersion": "v1", "kind": "ConfigMap",
-		"metadata": map[string]interface{}{"name": "app-config", "namespace": "default"},
+		"apiVersion": "v1", "kind": kindConfigMap,
+		"metadata": map[string]interface{}{"name": nameAppConfig, "namespace": nsDefault},
 		"data":     map[string]interface{}{"key": "live"},
 	}}
-	fetcher := &fakeFetcher{objs: map[string]*unstructured.Unstructured{"app-config": live}}
+	fetcher := &fakeFetcher{objs: map[string]*unstructured.Unstructured{nameAppConfig: live}}
 
 	r := reconcilerFor(scheme, fetcher, dc, desired)
 
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
 
 	var got myv1.DriftCheck
-	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got); err != nil {
+	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got); err != nil {
 		t.Fatal(err)
 	}
 	if got.Status.Summary.Changed != 1 || got.Status.Summary.New != 1 {
@@ -175,11 +175,11 @@ metadata:
 func TestReconcile_GitSourceDetectsDrift(t *testing.T) {
 	scheme := newScheme(t)
 	dc := &myv1.DriftCheck{
-		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: nsDefault},
 		Spec: myv1.DriftCheckSpec{
 			Source: myv1.Source{
 				Type: myv1.SourceTypeGit,
-				Git:  &myv1.GitSource{URL: "https://example.com/repo.git", Ref: "main", Path: "manifests"},
+				Git:  &myv1.GitSource{URL: testRepoURL, Ref: "main", Path: "manifests"},
 			},
 		},
 	}
@@ -196,7 +196,7 @@ func TestReconcile_GitSourceDetectsDrift(t *testing.T) {
 	}
 
 	res, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	})
 	if err != nil {
 		t.Fatalf("Reconcile() error = %v, want nil", err)
@@ -206,7 +206,7 @@ func TestReconcile_GitSourceDetectsDrift(t *testing.T) {
 	}
 
 	var got myv1.DriftCheck
-	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got); err != nil {
+	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got); err != nil {
 		t.Fatal(err)
 	}
 	if got.Status.Summary.New != 1 {
@@ -235,12 +235,12 @@ func writeChartAt(t *testing.T, base string) {
 func TestReconcile_HelmSourceDetectsDrift(t *testing.T) {
 	scheme := newScheme(t)
 	dc := &myv1.DriftCheck{
-		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: nsDefault},
 		Spec: myv1.DriftCheckSpec{
 			Source: myv1.Source{
 				Type: myv1.SourceTypeHelm,
 				Helm: &myv1.HelmSource{
-					Git:         myv1.GitSource{URL: "https://example.com/repo.git", Path: "chart"},
+					Git:         myv1.GitSource{URL: testRepoURL, Path: "chart"},
 					ReleaseName: "rel",
 				},
 			},
@@ -253,12 +253,12 @@ func TestReconcile_HelmSourceDetectsDrift(t *testing.T) {
 	}
 
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
 	var got myv1.DriftCheck
-	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got)
 	if got.Status.Summary.New != 1 {
 		t.Errorf("summary = %+v, want new=1 (rel-cm)", got.Status.Summary)
 	}
@@ -267,11 +267,11 @@ func TestReconcile_HelmSourceDetectsDrift(t *testing.T) {
 func TestReconcile_KustomizeSourceDetectsDrift(t *testing.T) {
 	scheme := newScheme(t)
 	dc := &myv1.DriftCheck{
-		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: nsDefault},
 		Spec: myv1.DriftCheckSpec{
 			Source: myv1.Source{
 				Type:      myv1.SourceTypeKustomize,
-				Kustomize: &myv1.KustomizeSource{Git: myv1.GitSource{URL: "https://example.com/repo.git", Path: "overlay"}},
+				Kustomize: &myv1.KustomizeSource{Git: myv1.GitSource{URL: testRepoURL, Path: "overlay"}},
 			},
 		},
 	}
@@ -290,12 +290,12 @@ func TestReconcile_KustomizeSourceDetectsDrift(t *testing.T) {
 	}
 
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
 	var got myv1.DriftCheck
-	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got)
 	if got.Status.Summary.New != 1 {
 		t.Errorf("summary = %+v, want new=1 (prod-config)", got.Status.Summary)
 	}
@@ -304,17 +304,17 @@ func TestReconcile_KustomizeSourceDetectsDrift(t *testing.T) {
 func TestReconcile_HelmMissingBlock(t *testing.T) {
 	scheme := newScheme(t)
 	dc := &myv1.DriftCheck{
-		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: nsDefault},
 		Spec:       myv1.DriftCheckSpec{Source: myv1.Source{Type: myv1.SourceTypeHelm}},
 	}
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
 	var got myv1.DriftCheck
-	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got)
 	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}
@@ -323,17 +323,17 @@ func TestReconcile_HelmMissingBlock(t *testing.T) {
 func TestReconcile_KustomizeMissingBlock(t *testing.T) {
 	scheme := newScheme(t)
 	dc := &myv1.DriftCheck{
-		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: nsDefault},
 		Spec:       myv1.DriftCheckSpec{Source: myv1.Source{Type: myv1.SourceTypeKustomize}},
 	}
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
 	var got myv1.DriftCheck
-	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got)
 	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}
@@ -343,18 +343,18 @@ func TestReconcile_GitSourceMissingGitBlock(t *testing.T) {
 	scheme := newScheme(t)
 	// Type is Git but the git block is absent → source resolution fails.
 	dc := &myv1.DriftCheck{
-		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: nsDefault},
 		Spec:       myv1.DriftCheckSpec{Source: myv1.Source{Type: myv1.SourceTypeGit}},
 	}
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
 
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v, want nil", err)
 	}
 	var got myv1.DriftCheck
-	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got)
 	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}
@@ -365,18 +365,18 @@ func TestReconcile_GitSourceMissingURL(t *testing.T) {
 	// Type is Git with a git block but no URL → source resolution fails
 	// permanently rather than looping on clone.
 	dc := &myv1.DriftCheck{
-		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: nsDefault},
 		Spec:       myv1.DriftCheckSpec{Source: myv1.Source{Type: myv1.SourceTypeGit, Git: &myv1.GitSource{}}},
 	}
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
 
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v, want nil", err)
 	}
 	var got myv1.DriftCheck
-	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got)
 	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}
@@ -386,7 +386,7 @@ func TestReconcile_NoFetcher(t *testing.T) {
 	scheme := newScheme(t)
 	dc := newDriftCheck()
 	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "desired", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: nameDesired, Namespace: nsDefault},
 		Data:       map[string]string{"m.yaml": "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n"},
 	}
 	// Reconciler built WITHOUT a fetcher.
@@ -395,12 +395,12 @@ func TestReconcile_NoFetcher(t *testing.T) {
 	r := &DriftCheckReconciler{Client: cl, Scheme: scheme}
 
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v, want nil", err)
 	}
 	var got myv1.DriftCheck
-	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got)
 	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != "NoFetcher" {
 		t.Errorf("expected NoFetcher condition, got %+v", got.Status.Conditions)
 	}
@@ -409,18 +409,18 @@ func TestReconcile_NoFetcher(t *testing.T) {
 func TestReconcile_UnknownSourceType(t *testing.T) {
 	scheme := newScheme(t)
 	dc := &myv1.DriftCheck{
-		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: nsDefault},
 		Spec:       myv1.DriftCheckSpec{Source: myv1.Source{Type: "Bogus"}},
 	}
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc)
 
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v, want nil", err)
 	}
 	var got myv1.DriftCheck
-	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got)
+	_ = r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got)
 	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != reasonSourceError {
 		t.Errorf("expected SourceError condition, got %+v", got.Status.Conditions)
 	}
@@ -428,7 +428,7 @@ func TestReconcile_UnknownSourceType(t *testing.T) {
 
 func TestConfigMapManifests(t *testing.T) {
 	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "cm", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "cm", Namespace: nsDefault},
 		Data:       map[string]string{"b.yaml": "kind: B", "a.yaml": "kind: A"},
 	}
 

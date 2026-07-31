@@ -22,7 +22,7 @@ const testToken = "tok"
 
 func gitAuthSecret(name string, data map[string][]byte) *corev1.Secret {
 	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: nsDefault},
 		Data:       data,
 	}
 }
@@ -30,7 +30,7 @@ func gitAuthSecret(name string, data map[string][]byte) *corev1.Secret {
 func TestResolveGitAuth_Nil(t *testing.T) {
 	scheme := newScheme(t)
 	r := reconcilerFor(scheme, &fakeFetcher{})
-	got, err := r.resolveGitAuth(context.Background(), "default", nil)
+	got, err := r.resolveGitAuth(context.Background(), nsDefault, nil)
 	if err != nil || got != nil {
 		t.Fatalf("resolveGitAuth(nil) = %v, %v; want nil, nil", got, err)
 	}
@@ -39,11 +39,11 @@ func TestResolveGitAuth_Nil(t *testing.T) {
 func TestResolveGitAuth_Basic(t *testing.T) {
 	scheme := newScheme(t)
 	// Trailing newlines (common in Secrets) must be trimmed for string creds.
-	sec := gitAuthSecret("creds", map[string][]byte{"username": []byte("u\n"), "password": []byte("tok\n")})
+	sec := gitAuthSecret(secretNameCreds, map[string][]byte{secretKeyUsername: []byte("u\n"), secretKeyPassword: []byte("tok\n")})
 	r := reconcilerFor(scheme, &fakeFetcher{}, sec)
 
-	got, err := r.resolveGitAuth(context.Background(), "default",
-		&myv1.GitAuth{Type: myv1.GitAuthBasic, SecretRef: myv1.LocalSecretRef{Name: "creds"}})
+	got, err := r.resolveGitAuth(context.Background(), nsDefault,
+		&myv1.GitAuth{Type: myv1.GitAuthBasic, SecretRef: myv1.LocalSecretRef{Name: secretNameCreds}})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -57,22 +57,22 @@ func TestResolveGitAuth_Basic(t *testing.T) {
 
 func TestResolveGitAuth_BasicMissingKey(t *testing.T) {
 	scheme := newScheme(t)
-	sec := gitAuthSecret("creds", map[string][]byte{"username": []byte("u")}) // no password
+	sec := gitAuthSecret(secretNameCreds, map[string][]byte{secretKeyUsername: []byte("u")}) // no password
 	r := reconcilerFor(scheme, &fakeFetcher{}, sec)
 
-	if _, err := r.resolveGitAuth(context.Background(), "default",
-		&myv1.GitAuth{Type: myv1.GitAuthBasic, SecretRef: myv1.LocalSecretRef{Name: "creds"}}); err == nil {
+	if _, err := r.resolveGitAuth(context.Background(), nsDefault,
+		&myv1.GitAuth{Type: myv1.GitAuthBasic, SecretRef: myv1.LocalSecretRef{Name: secretNameCreds}}); err == nil {
 		t.Fatal("expected error for missing password key, got nil")
 	}
 }
 
 func TestResolveGitAuth_Bearer(t *testing.T) {
 	scheme := newScheme(t)
-	sec := gitAuthSecret("creds", map[string][]byte{"bearerToken": []byte("tok\n")})
+	sec := gitAuthSecret(secretNameCreds, map[string][]byte{"bearerToken": []byte("tok\n")})
 	r := reconcilerFor(scheme, &fakeFetcher{}, sec)
 
-	got, err := r.resolveGitAuth(context.Background(), "default",
-		&myv1.GitAuth{Type: myv1.GitAuthBearer, SecretRef: myv1.LocalSecretRef{Name: "creds"}})
+	got, err := r.resolveGitAuth(context.Background(), nsDefault,
+		&myv1.GitAuth{Type: myv1.GitAuthBearer, SecretRef: myv1.LocalSecretRef{Name: secretNameCreds}})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -83,15 +83,15 @@ func TestResolveGitAuth_Bearer(t *testing.T) {
 
 func TestResolveGitAuth_SSH(t *testing.T) {
 	scheme := newScheme(t)
-	sec := gitAuthSecret("creds", map[string][]byte{
-		"identity":    []byte("PEM-KEY"),
-		"known_hosts": []byte("github.com ssh-ed25519 AAAA"),
-		"password":    []byte("passphrase"),
+	sec := gitAuthSecret(secretNameCreds, map[string][]byte{
+		"identity":        []byte("PEM-KEY"),
+		"known_hosts":     []byte("github.com ssh-ed25519 AAAA"),
+		secretKeyPassword: []byte("passphrase"),
 	})
 	r := reconcilerFor(scheme, &fakeFetcher{}, sec)
 
-	got, err := r.resolveGitAuth(context.Background(), "default",
-		&myv1.GitAuth{Type: myv1.GitAuthSSH, SecretRef: myv1.LocalSecretRef{Name: "creds"}})
+	got, err := r.resolveGitAuth(context.Background(), nsDefault,
+		&myv1.GitAuth{Type: myv1.GitAuthSSH, SecretRef: myv1.LocalSecretRef{Name: secretNameCreds}})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -107,11 +107,11 @@ func TestResolveGitAuth_SSH(t *testing.T) {
 func TestResolveGitAuth_SSHMissingKnownHosts(t *testing.T) {
 	scheme := newScheme(t)
 	// identity present but known_hosts absent → fail-closed error.
-	sec := gitAuthSecret("creds", map[string][]byte{"identity": []byte("PEM-KEY")})
+	sec := gitAuthSecret(secretNameCreds, map[string][]byte{"identity": []byte("PEM-KEY")})
 	r := reconcilerFor(scheme, &fakeFetcher{}, sec)
 
-	if _, err := r.resolveGitAuth(context.Background(), "default",
-		&myv1.GitAuth{Type: myv1.GitAuthSSH, SecretRef: myv1.LocalSecretRef{Name: "creds"}}); err == nil {
+	if _, err := r.resolveGitAuth(context.Background(), nsDefault,
+		&myv1.GitAuth{Type: myv1.GitAuthSSH, SecretRef: myv1.LocalSecretRef{Name: secretNameCreds}}); err == nil {
 		t.Fatal("expected fail-closed error for SSH without known_hosts, got nil")
 	}
 }
@@ -120,19 +120,19 @@ func TestResolveGitAuth_MissingSecret(t *testing.T) {
 	scheme := newScheme(t)
 	r := reconcilerFor(scheme, &fakeFetcher{}) // no Secret in the client
 
-	if _, err := r.resolveGitAuth(context.Background(), "default",
-		&myv1.GitAuth{Type: myv1.GitAuthBasic, SecretRef: myv1.LocalSecretRef{Name: "nope"}}); err == nil {
+	if _, err := r.resolveGitAuth(context.Background(), nsDefault,
+		&myv1.GitAuth{Type: myv1.GitAuthBasic, SecretRef: myv1.LocalSecretRef{Name: testMissingKey}}); err == nil {
 		t.Fatal("expected error for missing Secret, got nil")
 	}
 }
 
 func TestResolveGitAuth_UnknownType(t *testing.T) {
 	scheme := newScheme(t)
-	sec := gitAuthSecret("creds", map[string][]byte{"username": []byte("u"), "password": []byte("p")})
+	sec := gitAuthSecret(secretNameCreds, map[string][]byte{secretKeyUsername: []byte("u"), secretKeyPassword: []byte("p")})
 	r := reconcilerFor(scheme, &fakeFetcher{}, sec)
 
-	if _, err := r.resolveGitAuth(context.Background(), "default",
-		&myv1.GitAuth{Type: "Bogus", SecretRef: myv1.LocalSecretRef{Name: "creds"}}); err == nil {
+	if _, err := r.resolveGitAuth(context.Background(), nsDefault,
+		&myv1.GitAuth{Type: "Bogus", SecretRef: myv1.LocalSecretRef{Name: secretNameCreds}}); err == nil {
 		t.Fatal("expected error for unknown auth type, got nil")
 	}
 }
@@ -143,20 +143,20 @@ func TestResolveGitAuth_UnknownType(t *testing.T) {
 func TestReconcile_GitSourceThreadsAuth(t *testing.T) {
 	scheme := newScheme(t)
 	dc := &myv1.DriftCheck{
-		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "dc", Namespace: nsDefault},
 		Spec: myv1.DriftCheckSpec{
 			Source: myv1.Source{
 				Type: myv1.SourceTypeGit,
 				Git: &myv1.GitSource{
-					URL:  "https://example.com/repo.git",
+					URL:  testRepoURL,
 					Path: "manifests",
-					Auth: &myv1.GitAuth{Type: myv1.GitAuthBasic, SecretRef: myv1.LocalSecretRef{Name: "creds"}},
+					Auth: &myv1.GitAuth{Type: myv1.GitAuthBasic, SecretRef: myv1.LocalSecretRef{Name: secretNameCreds}},
 				},
 			},
 			Interval: metav1.Duration{Duration: 5 * time.Minute},
 		},
 	}
-	sec := gitAuthSecret("creds", map[string][]byte{"username": []byte("u"), "password": []byte(testToken)})
+	sec := gitAuthSecret(secretNameCreds, map[string][]byte{secretKeyUsername: []byte("u"), secretKeyPassword: []byte(testToken)})
 	r := reconcilerFor(scheme, &fakeFetcher{}, dc, sec)
 
 	var gotAuth *driftsource.GitAuth
@@ -171,7 +171,7 @@ func TestReconcile_GitSourceThreadsAuth(t *testing.T) {
 	}
 
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
 	}); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}

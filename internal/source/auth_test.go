@@ -15,6 +15,9 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 )
 
+// testToken is the shared credential fixture for the auth tests.
+const testToken = "tok"
+
 // testSSHKeyPEM returns a freshly generated, unencrypted PEM-encoded ed25519
 // private key suitable for gitssh.NewPublicKeys.
 func testSSHKeyPEM(t *testing.T) []byte {
@@ -57,7 +60,7 @@ func TestAuthMethod(t *testing.T) {
 	}
 
 	// Basic → HTTPS BasicAuth carrying the username/password verbatim.
-	m, err := authMethod(&GitAuth{Basic: &BasicAuth{Username: "u", Password: "tok"}})
+	m, err := authMethod(&GitAuth{Basic: &BasicAuth{Username: "u", Password: testToken}})
 	if err != nil {
 		t.Fatalf("basic: %v", err)
 	}
@@ -65,12 +68,12 @@ func TestAuthMethod(t *testing.T) {
 	if !ok {
 		t.Fatalf("basic type = %T, want *githttp.BasicAuth", m)
 	}
-	if ba.Username != "u" || ba.Password != "tok" {
+	if ba.Username != "u" || ba.Password != testToken {
 		t.Errorf("basic creds = %+v, want {u tok}", ba)
 	}
 
 	// Bearer → HTTPS TokenAuth.
-	m, err = authMethod(&GitAuth{Bearer: "tok"})
+	m, err = authMethod(&GitAuth{Bearer: testToken})
 	if err != nil {
 		t.Fatalf("bearer: %v", err)
 	}
@@ -78,7 +81,7 @@ func TestAuthMethod(t *testing.T) {
 	if !ok {
 		t.Fatalf("bearer type = %T, want *githttp.TokenAuth", m)
 	}
-	if ta.Token != "tok" {
+	if ta.Token != testToken {
 		t.Errorf("bearer token = %q, want tok", ta.Token)
 	}
 

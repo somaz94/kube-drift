@@ -32,6 +32,16 @@ import (
 
 const defaultInterval = 5 * time.Minute
 
+// Keys read from the git auth Secret. These are the Secret contract with the
+// user, so renaming one is a user-visible change.
+const (
+	secretKeyUsername    = "username"
+	secretKeyPassword    = "password"
+	secretKeyBearerToken = "bearerToken"
+	secretKeyIdentity    = "identity"
+	secretKeyKnownHosts  = "known_hosts"
+)
+
 // DriftCheckReconciler reconciles a DriftCheck object.
 type DriftCheckReconciler struct {
 	client.Client
@@ -268,34 +278,34 @@ func (r *DriftCheckReconciler) resolveGitAuth(ctx context.Context, ns string, sp
 
 	switch spec.Type {
 	case driftv1alpha1.GitAuthBasic:
-		username, err := requireStr("username")
+		username, err := requireStr(secretKeyUsername)
 		if err != nil {
 			return nil, err
 		}
-		password, err := requireSecret("password")
+		password, err := requireSecret(secretKeyPassword)
 		if err != nil {
 			return nil, err
 		}
 		return &driftsource.GitAuth{Basic: &driftsource.BasicAuth{Username: username, Password: password}}, nil
 	case driftv1alpha1.GitAuthBearer:
-		token, err := requireSecret("bearerToken")
+		token, err := requireSecret(secretKeyBearerToken)
 		if err != nil {
 			return nil, err
 		}
 		return &driftsource.GitAuth{Bearer: token}, nil
 	case driftv1alpha1.GitAuthSSH:
-		identity := sec.Data["identity"]
+		identity := sec.Data[secretKeyIdentity]
 		if len(bytes.TrimSpace(identity)) == 0 {
-			return nil, fmt.Errorf("git auth Secret %s is missing key %q", secretName, "identity")
+			return nil, fmt.Errorf("git auth Secret %s is missing key %q", secretName, secretKeyIdentity)
 		}
-		knownHosts := sec.Data["known_hosts"]
+		knownHosts := sec.Data[secretKeyKnownHosts]
 		if len(bytes.TrimSpace(knownHosts)) == 0 {
 			// Fail-closed: SSH host-key verification requires known_hosts.
-			return nil, fmt.Errorf("git auth Secret %s is missing key %q (SSH host-key verification is fail-closed)", secretName, "known_hosts")
+			return nil, fmt.Errorf("git auth Secret %s is missing key %q (SSH host-key verification is fail-closed)", secretName, secretKeyKnownHosts)
 		}
 		return &driftsource.GitAuth{SSH: &driftsource.SSHAuth{
 			PrivateKey: identity,
-			Passphrase: sec.Data["password"],
+			Passphrase: sec.Data[secretKeyPassword],
 			KnownHosts: knownHosts,
 		}}, nil
 	default:

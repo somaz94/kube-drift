@@ -50,7 +50,7 @@ func driftedStatus() myv1.DriftCheckStatus {
 	return myv1.DriftCheckStatus{
 		Summary: myv1.DriftSummary{Changed: 1, Unchanged: 2},
 		DriftedResources: []myv1.DriftedResource{
-			{APIVersion: "v1", Kind: "ConfigMap", Name: "app-config", Namespace: "default", Status: myv1.DriftChanged},
+			{APIVersion: "v1", Kind: kindConfigMap, Name: nameAppConfig, Namespace: nsDefault, Status: myv1.DriftChanged},
 		},
 	}
 }
@@ -71,7 +71,7 @@ func TestNotify_NoWebhooks(t *testing.T) {
 
 func TestNotify_SendsOnDriftAndDedups(t *testing.T) {
 	scheme := newScheme(t)
-	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookSlack, URL: "http://hook.example/1"})
+	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookSlack, URL: testWebhookURL})
 	dc.Status = driftedStatus()
 	n := &recordingNotifier{}
 	r := notifyReconciler(scheme, n, nil, dc)
@@ -101,7 +101,7 @@ func TestNotify_SendsOnDriftAndDedups(t *testing.T) {
 
 func TestNotify_ReNotifiesWhenDriftSetChanges(t *testing.T) {
 	scheme := newScheme(t)
-	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookGeneric, URL: "http://hook.example/1"})
+	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookGeneric, URL: testWebhookURL})
 	dc.Status = driftedStatus()
 	n := &recordingNotifier{}
 	r := notifyReconciler(scheme, n, nil, dc)
@@ -112,7 +112,7 @@ func TestNotify_ReNotifiesWhenDriftSetChanges(t *testing.T) {
 	}
 	// Drift set changes to a different resource → must send again.
 	dc.Status.DriftedResources = []myv1.DriftedResource{
-		{APIVersion: "v1", Kind: "Service", Name: "web", Namespace: "default", Status: myv1.DriftNew},
+		{APIVersion: "v1", Kind: kindService, Name: "web", Namespace: nsDefault, Status: myv1.DriftNew},
 	}
 	dc.Status.Summary = myv1.DriftSummary{New: 1, Unchanged: 2}
 	if err := r.notify(context.Background(), dc); err != nil {
@@ -125,7 +125,7 @@ func TestNotify_ReNotifiesWhenDriftSetChanges(t *testing.T) {
 
 func TestNotify_UnchangedTallyDoesNotReNotify(t *testing.T) {
 	scheme := newScheme(t)
-	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookGeneric, URL: "http://hook.example/1"})
+	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookGeneric, URL: testWebhookURL})
 	dc.Status = driftedStatus()
 	n := &recordingNotifier{}
 	r := notifyReconciler(scheme, n, nil, dc)
@@ -144,8 +144,8 @@ func TestNotify_UnchangedTallyDoesNotReNotify(t *testing.T) {
 }
 
 func TestDriftHash_OrderInvariantAndDistinct(t *testing.T) {
-	a := myv1.DriftedResource{APIVersion: "v1", Kind: "ConfigMap", Name: "a", Namespace: "default", Status: myv1.DriftChanged}
-	b := myv1.DriftedResource{APIVersion: "v1", Kind: "Service", Name: "b", Namespace: "prod", Status: myv1.DriftNew}
+	a := myv1.DriftedResource{APIVersion: "v1", Kind: kindConfigMap, Name: "a", Namespace: nsDefault, Status: myv1.DriftChanged}
+	b := myv1.DriftedResource{APIVersion: "v1", Kind: kindService, Name: "b", Namespace: "prod", Status: myv1.DriftNew}
 
 	if driftHash([]myv1.DriftedResource{a, b}) != driftHash([]myv1.DriftedResource{b, a}) {
 		t.Error("driftHash is order-dependent; must be stable regardless of engine order")
@@ -160,7 +160,7 @@ func TestDriftHash_OrderInvariantAndDistinct(t *testing.T) {
 
 func TestNotify_ResolvedTransition(t *testing.T) {
 	scheme := newScheme(t)
-	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookGeneric, URL: "http://hook.example/1"})
+	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookGeneric, URL: testWebhookURL})
 	// Previously drifted (non-empty hash), now clean.
 	dc.Status = myv1.DriftCheckStatus{
 		Summary:          myv1.DriftSummary{Unchanged: 3},
@@ -185,7 +185,7 @@ func TestNotify_ResolvedTransition(t *testing.T) {
 
 func TestNotify_FreshNoDriftSkips(t *testing.T) {
 	scheme := newScheme(t)
-	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookGeneric, URL: "http://hook.example/1"})
+	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookGeneric, URL: testWebhookURL})
 	// Never drifted (empty hash) and currently clean → no non-event announcement.
 	dc.Status = myv1.DriftCheckStatus{Summary: myv1.DriftSummary{Unchanged: 3}}
 	n := &recordingNotifier{}
@@ -206,12 +206,12 @@ func TestNotify_SecretRefResolvesURL(t *testing.T) {
 	scheme := newScheme(t)
 	dc := driftCheckWithNotify(myv1.Webhook{
 		Type:         myv1.WebhookSlack,
-		URLSecretRef: &myv1.SecretKeyRef{Name: "slack", Key: "url"},
+		URLSecretRef: &myv1.SecretKeyRef{Name: "slack", Key: secretKeyURL},
 	})
 	dc.Status = driftedStatus()
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "slack", Namespace: "default"},
-		Data:       map[string][]byte{"url": []byte("  http://hook.example/from-secret  ")},
+		ObjectMeta: metav1.ObjectMeta{Name: "slack", Namespace: nsDefault},
+		Data:       map[string][]byte{secretKeyURL: []byte("  http://hook.example/from-secret  ")},
 	}
 	n := &recordingNotifier{}
 	r := notifyReconciler(scheme, n, nil, dc, secret)
@@ -228,7 +228,7 @@ func TestNotify_SecretMissing_RecordsEventKeepsHash(t *testing.T) {
 	scheme := newScheme(t)
 	dc := driftCheckWithNotify(myv1.Webhook{
 		Type:         myv1.WebhookSlack,
-		URLSecretRef: &myv1.SecretKeyRef{Name: "absent", Key: "url"},
+		URLSecretRef: &myv1.SecretKeyRef{Name: "absent", Key: secretKeyURL},
 	})
 	dc.Status = driftedStatus()
 	rec := record.NewFakeRecorder(4)
@@ -256,7 +256,7 @@ func TestNotify_SecretMissing_RecordsEventKeepsHash(t *testing.T) {
 
 func TestNotify_SendError_KeepsHashForRetry(t *testing.T) {
 	scheme := newScheme(t)
-	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookGeneric, URL: "http://hook.example/1"})
+	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookGeneric, URL: testWebhookURL})
 	dc.Status = driftedStatus()
 	rec := record.NewFakeRecorder(4)
 	n := &recordingNotifier{err: errors.New("boom")}
@@ -272,16 +272,16 @@ func TestNotify_SendError_KeepsHashForRetry(t *testing.T) {
 
 func TestReconcile_EndToEndNotifies(t *testing.T) {
 	scheme := newScheme(t)
-	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookSlack, URL: "http://hook.example/1"})
+	dc := driftCheckWithNotify(myv1.Webhook{Type: myv1.WebhookSlack, URL: testWebhookURL})
 	desired := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "desired", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: nameDesired, Namespace: nsDefault},
 		Data:       map[string]string{"m.yaml": "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: brand-new\n  namespace: default\n"},
 	}
 	n := &recordingNotifier{}
 	r := notifyReconciler(scheme, n, record.NewFakeRecorder(4), dc, desired)
 	r.Fetcher = &fakeFetcher{} // empty → "new"
 
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "dc", Namespace: "default"}}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault}}
 	if _, err := r.Reconcile(context.Background(), req); err != nil {
 		t.Fatalf("Reconcile() error = %v", err)
 	}
@@ -290,7 +290,7 @@ func TestReconcile_EndToEndNotifies(t *testing.T) {
 	}
 
 	var got myv1.DriftCheck
-	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: "default"}, &got); err != nil {
+	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got); err != nil {
 		t.Fatal(err)
 	}
 	if got.Status.LastNotifiedHash == "" {

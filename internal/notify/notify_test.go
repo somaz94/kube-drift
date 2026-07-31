@@ -10,13 +10,16 @@ import (
 	"testing"
 )
 
+// nsDefault is the namespace every notify fixture uses.
+const nsDefault = "default"
+
 func drift() Event {
 	return Event{
 		Name:      "dc",
-		Namespace: "default",
+		Namespace: nsDefault,
 		Summary:   Summary{Changed: 1, New: 2, Deleted: 0, Unchanged: 5},
 		Drifted: []Resource{
-			{APIVersion: "v1", Kind: "ConfigMap", Name: "app-config", Namespace: "default", Status: "changed"},
+			{APIVersion: "v1", Kind: "ConfigMap", Name: "app-config", Namespace: nsDefault, Status: "changed"},
 			{APIVersion: "v1", Kind: "Service", Name: "web", Namespace: "prod", Status: "new"},
 		},
 	}
@@ -70,7 +73,7 @@ func TestSender_Generic(t *testing.T) {
 		t.Fatalf("Send() error = %v", err)
 	}
 
-	if got.DriftCheck != "dc" || got.Namespace != "default" {
+	if got.DriftCheck != "dc" || got.Namespace != nsDefault {
 		t.Errorf("identity = %s/%s, want default/dc", got.Namespace, got.DriftCheck)
 	}
 	if got.Resolved {
@@ -127,7 +130,7 @@ func TestSender_UnknownType(t *testing.T) {
 }
 
 func TestSlackText_Resolved(t *testing.T) {
-	ev := Event{Name: "dc", Namespace: "default", Resolved: true}
+	ev := Event{Name: "dc", Namespace: nsDefault, Resolved: true}
 	text := slackText(ev)
 	if !strings.Contains(text, "resolved") {
 		t.Errorf("resolved text = %q", text)
