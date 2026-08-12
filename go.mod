@@ -8,7 +8,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
 	github.com/prometheus/client_golang v1.24.1
-	github.com/somaz94/kube-diff v0.5.0
+	github.com/somaz94/kube-diff v0.5.1
 	golang.org/x/crypto v0.54.0
 	helm.sh/helm/v3 v3.21.3
 	k8s.io/api v0.36.3
