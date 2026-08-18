@@ -2,10 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased (2026-07-27)
+## Unreleased (2026-08-18)
+
+### Bug Fixes
+
+- **chart:** declare the Kubernetes floor the CRD's CEL validation rules require ([b3e4b62](https://github.com/somaz94/kube-drift/commit/b3e4b6217e9ba43909872a9787b7a1ca58341773))
+
+### Code Refactoring
+
+- name repeated string literals as constants ([4560f5e](https://github.com/somaz94/kube-drift/commit/4560f5e7a2450c60dd45dba8fa2405ce542c9f6d))
+- preallocate drifted slice with results capacity ([164f010](https://github.com/somaz94/kube-drift/commit/164f01032c168224050b65e4a5c9509e449f8a35))
+
+### Documentation
+
+- document the kubectl apply install path and uninstall steps ([701a777](https://github.com/somaz94/kube-drift/commit/701a777aeb3a41ec2c367c1a81ebe2652965629b))
+- state the Kubernetes v1.25+ requirement in the prerequisites ([d521232](https://github.com/somaz94/kube-drift/commit/d521232a27995ce64628e271372c94f30c69d2dc))
 
 ### Builds
 
+- **deps:** bump actions/stale from 10 to 11 (#5) ([#5](https://github.com/somaz94/kube-drift/pull/5)) ([dbeff56](https://github.com/somaz94/kube-drift/commit/dbeff56e03741ba7c91c309bf28ac14b0ee01e11))
+- **deps:** bump github.com/somaz94/kube-diff in the go-minor group (#7) ([#7](https://github.com/somaz94/kube-drift/pull/7)) ([435a745](https://github.com/somaz94/kube-drift/commit/435a7451905902a445afc1342cda51dac8b96ea2))
+- **deps:** bump github.com/go-git/go-git/v5 in the go-minor group (#6) ([#6](https://github.com/somaz94/kube-drift/pull/6)) ([2d829fd](https://github.com/somaz94/kube-drift/commit/2d829fdc93dd3b592ff5a95f13de7ec4d6a6aee8))
+- **deps:** bump the go-minor group with 5 updates (#4) ([#4](https://github.com/somaz94/kube-drift/pull/4)) ([7ee88da](https://github.com/somaz94/kube-drift/commit/7ee88da4df2afad2b06ab6038b7a5ae9cb672a69))
 - **deps:** bump actions/setup-go from 6 to 7 (#3) ([#3](https://github.com/somaz94/kube-drift/pull/3)) ([fc11af9](https://github.com/somaz94/kube-drift/commit/fc11af989c92e38a4244de36346b0bc0699caad1))
 - **deps:** bump the go-minor group with 2 updates (#2) ([#2](https://github.com/somaz94/kube-drift/pull/2)) ([961eae4](https://github.com/somaz94/kube-drift/commit/961eae4400b1535eafeff5a0fe25890531d97158))
 - **deps:** bump the go-minor group with 5 updates (#1) ([#1](https://github.com/somaz94/kube-drift/pull/1)) ([53ca109](https://github.com/somaz94/kube-drift/commit/53ca109c354f50efc4e925d34bdafe25ee32c185))
@@ -13,6 +31,13 @@ All notable changes to this project will be documented in this file.
 ### Continuous Integration
 
 - remove DCO workflow ([b910060](https://github.com/somaz94/kube-drift/commit/b910060794d9cf3682b98cc0bc7292f9fd246773))
+
+### Chores
+
+- track dist/install.yaml install manifest ([0944c69](https://github.com/somaz94/kube-drift/commit/0944c69e9b65fea4b404a0694931c2fd5994e8ce))
+- extract repeated test literals into constants ([3e24994](https://github.com/somaz94/kube-drift/commit/3e249945a75db6a4d6f42979a5cbd5d7513f4da6))
+- resolve golangci-lint errcheck and staticcheck findings ([778266e](https://github.com/somaz94/kube-drift/commit/778266e8efeb721c5049a030929c8b006150edca))
+- **lint:** use the golangci-lint v2 module path and config schema ([5873110](https://github.com/somaz94/kube-drift/commit/5873110c54f35bc2843be59b9a8313374a8ecd2b))
 
 ### Contributors
 
