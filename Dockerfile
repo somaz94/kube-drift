@@ -2,7 +2,7 @@
 # --platform=$BUILDPLATFORM keeps the builder on the native build host so the Go
 # toolchain cross-compiles to $TARGETARCH (see the build step below) instead of
 # running under slow QEMU emulation for non-native target platforms.
-FROM --platform=${BUILDPLATFORM} golang:1.26 AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.27 AS builder
 ARG BUILDPLATFORM
 ARG TARGETOS
 ARG TARGETARCH
