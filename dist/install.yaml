@@ -752,9 +752,9 @@ spec:
     spec:
       containers:
       - args:
+        - --metrics-bind-address=:8443
         - --leader-elect=true
         - --health-probe-bind-address=:8081
-        - --metrics-bind-address=:8443
         command:
         - /manager
         image: somaz940/kube-drift:v0.4.0

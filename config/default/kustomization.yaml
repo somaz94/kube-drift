@@ -10,5 +10,7 @@ resources:
 - metrics_service.yaml
 
 patches:
-# [METRICS] This patch REPLACES the container args: mirror ../manager/manager.yaml args here.
+# [METRICS] Prepends --metrics-bind-address to the manager args (JSON6902 add).
 - path: manager_metrics_patch.yaml
+  target:
+    kind: Deployment
