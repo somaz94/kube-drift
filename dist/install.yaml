@@ -758,7 +758,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: somaz940/kube-drift:v0.5.0
+        image: somaz940/kube-drift:v0.5.1
         livenessProbe:
           httpGet:
             path: /healthz

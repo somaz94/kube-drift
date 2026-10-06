@@ -8,7 +8,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/somaz94/kube-drift)](https://goreportcard.com/report/github.com/somaz94/kube-drift)
 ![GitHub Stars](https://img.shields.io/github/stars/somaz94/kube-drift?style=social)
 
-> **Status: early development (v0.5.0 — WIP).** The `DriftCheck` CRD, the operator, and drift detection for **`ConfigMap`, `Git`, `Helm`, and `Kustomize` sources** are implemented, along with Prometheus metrics and Slack/webhook notifications: the controller loads (and, for Helm/Kustomize, renders) the desired manifests, compares them against the live cluster via the `kube-diff` engine, and records the result into `status`. Git sources can now clone private repositories via `source.git.auth` (Basic/Bearer/SSH), and broader read access for comparing arbitrary kinds is available opt-in via the chart's `rbac.viewRole` / `rbac.extraRules` knobs. See [Roadmap](#roadmap) before depending on this.
+> **Status: early development (v0.5.1 — WIP).** The `DriftCheck` CRD, the operator, and drift detection for **`ConfigMap`, `Git`, `Helm`, and `Kustomize` sources** are implemented, along with Prometheus metrics and Slack/webhook notifications: the controller loads (and, for Helm/Kustomize, renders) the desired manifests, compares them against the live cluster via the `kube-diff` engine, and records the result into `status`. Git sources can now clone private repositories via `source.git.auth` (Basic/Bearer/SSH), and broader read access for comparing arbitrary kinds is available opt-in via the chart's `rbac.viewRole` / `rbac.extraRules` knobs. See [Roadmap](#roadmap) before depending on this.
 
 <br/>
 
