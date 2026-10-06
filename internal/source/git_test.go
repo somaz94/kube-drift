@@ -126,12 +126,8 @@ func TestGitSource_PathTraversalClamped(t *testing.T) {
 }
 
 func TestGitSource_SecureJoinError(t *testing.T) {
-	// A symlink loop inside the checkout makes SecureJoin fail (ELOOP) while
-	// resolving a sub-path that passes through it, so Load surfaces the error
-	// instead of hanging or escaping.
 	clone := func(_ context.Context, dir, _, _ string, _ *GitAuth) error {
-		// A relative self-referential symlink ("loop" -> "loop") drives
-		// SecureJoin into ELOOP when a sub-path descends through it.
+		// "loop" -> "loop" makes SecureJoin fail with ELOOP for any sub-path through it.
 		return os.Symlink("loop", filepath.Join(dir, "loop"))
 	}
 	src := NewGitSource(context.Background(), "u", "", "loop/x", nil, clone)

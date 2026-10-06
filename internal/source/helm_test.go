@@ -52,9 +52,6 @@ func TestHelmSource_DependencyBuildError(t *testing.T) {
 	}
 }
 
-// TestBuildDependencies_NoDeps exercises the real buildDependencies plumbing
-// (temp repo dir, repo-file write, Manager.Update) on a dependency-free chart,
-// which resolves to a no-op without any network access.
 func TestHelmSource_DependencyBuildCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // already canceled
@@ -68,6 +65,8 @@ func TestHelmSource_DependencyBuildCanceledContext(t *testing.T) {
 	}
 }
 
+// TestBuildDependencies_NoDeps runs the real buildDependencies plumbing; with no
+// dependencies Manager.Update is a no-op, so nothing touches the network.
 func TestBuildDependencies_NoDeps(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "chart")
 	writeChart(t, dir) // Chart.yaml declares no dependencies
@@ -118,7 +117,6 @@ func TestRenderHelmChart_RenderError(t *testing.T) {
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, "Chart.yaml"), "apiVersion: v2\nname: demo\nversion: 0.1.0\n")
 	mustWrite(t, filepath.Join(dir, "values.yaml"), "x: y\n")
-	// A template that always errors during rendering.
 	mustWrite(t, filepath.Join(dir, "templates", "bad.yaml"), `{{ fail "intentional render failure" }}`)
 	if _, err := renderHelmChart(dir, "rel", "ns", nil, nil); err == nil {
 		t.Fatal("expected a render error, got nil")
@@ -169,7 +167,7 @@ func TestDependencyRepoFile(t *testing.T) {
 	}
 }
 
-// writeChart writes a minimal renderable chart into dir and returns dir.
+// writeChart writes a minimal renderable chart into dir.
 func writeChart(t *testing.T, dir string) {
 	t.Helper()
 	mustWrite(t, filepath.Join(dir, "Chart.yaml"), "apiVersion: v2\nname: demo\nversion: 0.1.0\n")
@@ -214,7 +212,6 @@ func TestRenderHelmChart_ValuesPrecedence(t *testing.T) {
 	if !strings.Contains(s, "greeting: inline") {
 		t.Errorf("inline value did not win: %s", s)
 	}
-	// NOTES.txt and partials are excluded.
 	if strings.Contains(s, "thanks for installing") {
 		t.Errorf("NOTES.txt leaked into output: %s", s)
 	}

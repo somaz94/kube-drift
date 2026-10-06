@@ -49,17 +49,14 @@ func testKnownHosts(t *testing.T) []byte {
 }
 
 func TestAuthMethod(t *testing.T) {
-	// nil auth clones anonymously → nil AuthMethod, no error.
 	if m, err := authMethod(nil); err != nil || m != nil {
 		t.Fatalf("authMethod(nil) = %v, %v; want nil, nil", m, err)
 	}
 
-	// An auth with no scheme populated is also anonymous.
 	if m, err := authMethod(&GitAuth{}); err != nil || m != nil {
 		t.Fatalf("authMethod(empty) = %v, %v; want nil, nil", m, err)
 	}
 
-	// Basic → HTTPS BasicAuth carrying the username/password verbatim.
 	m, err := authMethod(&GitAuth{Basic: &BasicAuth{Username: "u", Password: testToken}})
 	if err != nil {
 		t.Fatalf("basic: %v", err)
@@ -72,7 +69,6 @@ func TestAuthMethod(t *testing.T) {
 		t.Errorf("basic creds = %+v, want {u tok}", ba)
 	}
 
-	// Bearer → HTTPS TokenAuth.
 	m, err = authMethod(&GitAuth{Bearer: testToken})
 	if err != nil {
 		t.Fatalf("bearer: %v", err)
@@ -85,8 +81,6 @@ func TestAuthMethod(t *testing.T) {
 		t.Errorf("bearer token = %q, want tok", ta.Token)
 	}
 
-	// SSH with a valid key + known_hosts → PublicKeys with the default "git"
-	// user and a host-key callback wired.
 	m, err = authMethod(&GitAuth{SSH: &SSHAuth{PrivateKey: testSSHKeyPEM(t), KnownHosts: testKnownHosts(t)}})
 	if err != nil {
 		t.Fatalf("ssh: %v", err)
@@ -134,10 +128,8 @@ func TestAuthMethod_SSHBadKey(t *testing.T) {
 	}
 }
 
-// TestGitClone_AuthMethodError drives the real gitClone (nil cloner) with SSH
-// auth that fails authMethod (fail-closed: no known_hosts). authMethod errors
-// before any network access, exercising gitClone's auth-error path and
-// withCheckout's clone-error wrapping offline.
+// TestGitClone_AuthMethodError runs the real gitClone; authMethod fails closed
+// (no known_hosts) before any dial, so the example.com URL is never contacted.
 func TestGitClone_AuthMethodError(t *testing.T) {
 	auth := &GitAuth{SSH: &SSHAuth{PrivateKey: testSSHKeyPEM(t)}} // no KnownHosts → fail-closed
 	src := NewGitSource(context.Background(), "https://example.com/repo.git", "", "", auth, nil)

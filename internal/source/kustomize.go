@@ -47,9 +47,9 @@ func (k *KustomizeSource) Load() ([]kdsource.Resource, error) {
 	})
 }
 
-// renderKustomize runs the kustomization rooted at dir and returns the built
-// YAML stream. It uses the default (root-only) load restrictions so a
-// kustomization cannot read files outside its own directory tree.
+// renderKustomize builds the kustomization at dir under krusty's root-only load
+// restrictions: loose files must sit under their kustomization's root, but a
+// directory base such as ../base is re-rooted and still loads.
 func renderKustomize(dir string) ([]byte, error) {
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	resMap, err := k.Run(filesys.MakeFsOnDisk(), dir)

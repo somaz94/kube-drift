@@ -61,15 +61,9 @@ type SSHAuth struct {
 	KnownHosts []byte
 }
 
-// GitSource loads plain-YAML manifests from a Git repository. It implements
-// kube-diff's source.Source: Load clones the repository into a temporary
-// directory, checks out the requested ref, parses the manifests under the
-// configured sub-path via kube-diff's FileSource, and removes the checkout
-// before returning (Load yields parsed in-memory resources, not file paths).
-//
-// Only plain YAML is supported — no Helm/Kustomize rendering. A private
-// repository is cloned with the credentials in Auth; when Auth is nil the clone
-// is anonymous.
+// GitSource loads plain-YAML manifests from a Git repository; rendering lives in
+// HelmSource and KustomizeSource. It implements kube-diff's source.Source. Load
+// returns parsed in-memory resources, so the checkout can be removed on return.
 type GitSource struct {
 	URL  string
 	Ref  string
@@ -105,15 +99,10 @@ func (g *GitSource) Load() ([]kdsource.Resource, error) {
 	})
 }
 
-// withCheckout clones url@ref into a temporary directory, resolves path against
-// the checkout (rejecting escapes), invokes fn with the resolved load path, and
-// removes the checkout before returning. It is the shared clone+cleanup harness
-// behind the Git, Helm, and Kustomize sources — each supplies its own fn to
-// parse or render the checked-out files.
-//
-// The checkout is removed via a deferred cleanup whose failure is surfaced on
-// the (named) error return when fn otherwise succeeded — this controller clones
-// on every reconcile, so a silently-leaked temp directory would accumulate.
+// withCheckout is the shared clone+cleanup harness behind the Git, Helm, and
+// Kustomize sources: it clones url@ref into a temp dir, hands fn the sub-path
+// (clamped inside the checkout), and removes the checkout. A cleanup failure is
+// returned via the named err: every reconcile clones, so a leaked dir piles up.
 func withCheckout(ctx context.Context, url, ref, path string, auth *GitAuth, clone CloneFunc, fn func(loadPath string) ([]kdsource.Resource, error)) (resources []kdsource.Resource, err error) {
 	if clone == nil {
 		clone = gitClone

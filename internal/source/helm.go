@@ -112,12 +112,9 @@ func runBuildDeps(ctx context.Context, build func(chartDir string) error, chartD
 	}
 }
 
-// buildDependencies fetches the chart's declared dependencies (Chart.yaml
-// `dependencies`) into charts/ using the Helm SDK — no `helm` binary or shell
-// out. Each dependency's repository must be an HTTP(S) URL reachable from the
-// pod; named-alias repositories (`@repo`) are unsupported because the controller
-// has no Helm repository config. Repository config and cache are placed in a
-// writable temp directory (the controller filesystem is otherwise read-only).
+// buildDependencies fetches the chart's declared dependencies into charts/ via
+// the Helm SDK (no `helm` binary in the image). HTTP(S) and exact-version oci://
+// repositories resolve; "@alias" names fail, as the controller has no repo config.
 func buildDependencies(chartDir string) (err error) {
 	ch, err := loader.Load(chartDir)
 	if err != nil {
@@ -156,13 +153,9 @@ func buildDependencies(chartDir string) (err error) {
 	return nil
 }
 
-// dependencyRepoFile builds a Helm repository file registering each HTTP(S)
-// dependency repository (deduplicated by URL) so Manager.Update can resolve
-// dependencies by URL. Dependencies with no repository, or a named alias (e.g.
-// "@localrepo"), are skipped — the controller has no pre-configured repos, so a
-// named alias is left for Update to report as unresolvable rather than silently
-// dropped. oci:// dependencies are also skipped here; Manager.Update resolves
-// those natively without a repository-file entry.
+// dependencyRepoFile registers each distinct HTTP(S) dependency repository so
+// Manager.Update can resolve it. Everything else is left to Update: it pulls
+// exact-version oci:// refs itself and reports an unknown "@alias" as an error.
 func dependencyRepoFile(deps []*chart.Dependency) *repo.File {
 	rf := repo.NewFile()
 	seen := map[string]bool{}
@@ -177,22 +170,12 @@ func dependencyRepoFile(deps []*chart.Dependency) *repo.File {
 	return rf
 }
 
-// renderHelmChart loads the chart at chartDir, merges the values (files first,
-// in order, then inline values on top), renders the templates with the release
-// name/namespace, and returns the concatenated manifest stream compared against
-// the cluster.
-//
-// The output is the chart's steady-state resources:
-//   - CRDs shipped under the chart's crds/ directory are included (engine.Render
-//     only processes templates/, so they are added explicitly).
-//   - Hook resources (pre/post-install, test Pods/Jobs, …) are excluded — they
-//     are Helm-lifecycle objects that do not persist in the cluster, so
-//     comparing them would report permanent false drift.
-//   - Partials (_*.tpl), NOTES.txt, and empty documents are dropped.
-//
-// Chart dependencies must be vendored under charts/; declared-but-unfetched
-// dependencies (no `helm dependency build`) are silently absent from the render.
-// valuesFiles are confined to the chart directory (a "../" escape is rejected).
+// renderHelmChart renders the chart at chartDir: values files merge in order,
+// inline values on top. The output is the chart's steady state: crds/ is
+// appended (engine.Render only renders templates/) and hooks are dropped, since
+// they do not persist and would read as permanent drift. Dependencies absent
+// from charts/ are silently skipped (see HelmSource.DependencyBuild), and
+// valuesFiles are clamped inside chartDir.
 func renderHelmChart(chartDir, releaseName, namespace string, inline []byte, valuesFiles []string) ([]byte, error) {
 	ch, err := loader.Load(chartDir)
 	if err != nil {
@@ -262,11 +245,8 @@ func renderHelmChart(chartDir, releaseName, namespace string, inline []byte, val
 	return bytes.Join(docs, []byte("\n---\n")), nil
 }
 
-// mergeValues deep-merges src into dst, with src taking precedence, and returns
-// dst. Nested maps are merged recursively; any other value in src overwrites the
-// corresponding key in dst. Note: src's nested maps are aliased into dst, not
-// deep-copied — callers must pass transient maps (freshly parsed per file), not
-// shared ones.
+// mergeValues deep-merges src into dst (src wins) and returns dst. src's nested
+// maps are aliased, not copied: pass freshly parsed maps, never shared ones.
 func mergeValues(dst, src map[string]any) map[string]any {
 	if dst == nil {
 		dst = map[string]any{}
