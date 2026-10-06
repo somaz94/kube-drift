@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.5.1](https://github.com/somaz94/kube-drift/compare/v0.5.0...v0.5.1) (2026-10-06)
+
+### Bug Fixes
+
+- bump kube-diff to v0.6.1 to refresh aged discovery answers ([cd33680](https://github.com/somaz94/kube-drift/commit/cd3368010e18377650fdb3ce192b1a01bcf1b77b))
+
+### Chores
+
+- bump version to v0.5.1 ([fe09849](https://github.com/somaz94/kube-drift/commit/fe09849fb2378a6fa2dc0997bae231a5060d21dc))
+
+### Contributors
+
+- somaz
+
+<br/>
+
 ## [v0.5.0](https://github.com/somaz94/kube-drift/compare/v0.4.0...v0.5.0) (2026-10-06)
 
 ### Features
