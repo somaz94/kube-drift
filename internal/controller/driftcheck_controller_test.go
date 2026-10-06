@@ -455,3 +455,16 @@ func TestConfigMapManifests(t *testing.T) {
 		t.Error("expected error for missing key, got nil")
 	}
 }
+
+func TestConfigMapManifests_EmptyKeyedEntry(t *testing.T) {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "cm", Namespace: nsDefault},
+		Data:       map[string]string{"blank.yaml": " \n"},
+		BinaryData: map[string][]byte{"empty.bin": {}},
+	}
+	for _, key := range []string{"blank.yaml", "empty.bin"} {
+		if _, err := configMapManifests(cm, key); err == nil {
+			t.Errorf("configMapManifests(%q): expected error for empty entry, got nil", key)
+		}
+	}
+}

@@ -307,8 +307,8 @@ func (r *DriftCheckReconciler) resolveGitAuth(ctx context.Context, ns string, sp
 }
 
 // configMapManifests returns the entry named by key (Data, then BinaryData), or
-// every entry joined in sorted key order as a multi-doc stream. Only the no-key
-// path rejects empty content, so an empty ConfigMap surfaces as a condition.
+// every entry joined in sorted key order as a multi-doc stream. Empty content is
+// an error, so an empty ConfigMap surfaces as a condition rather than a silent no-op.
 func configMapManifests(cm *corev1.ConfigMap, key string) ([]byte, error) {
 	get := func(k string) ([]byte, bool) {
 		if v, ok := cm.Data[k]; ok {
@@ -321,10 +321,14 @@ func configMapManifests(cm *corev1.ConfigMap, key string) ([]byte, error) {
 	}
 
 	if key != "" {
-		if v, ok := get(key); ok {
-			return v, nil
+		v, ok := get(key)
+		if !ok {
+			return nil, fmt.Errorf("key %q not found in ConfigMap %s/%s", key, cm.Namespace, cm.Name)
 		}
-		return nil, fmt.Errorf("key %q not found in ConfigMap %s/%s", key, cm.Namespace, cm.Name)
+		if len(bytes.TrimSpace(v)) == 0 {
+			return nil, fmt.Errorf("key %q in ConfigMap %s/%s is empty", key, cm.Namespace, cm.Name)
+		}
+		return v, nil
 	}
 
 	keys := make([]string, 0, len(cm.Data)+len(cm.BinaryData))

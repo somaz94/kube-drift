@@ -474,7 +474,7 @@ kubectl get driftcheck <name> -o jsonpath='{.status.conditions}' | jq
 | `Ready` reason | Meaning | Fix |
 |---|---|---|
 | `DriftEvaluated` (True) | The check ran successfully | — |
-| `SourceError` (False) | Desired manifests could not be loaded — missing ConfigMap, bad key, missing `git` block, or empty `url` | Correct `spec.source` |
+| `SourceError` (False) | Desired manifests could not be loaded — missing ConfigMap, missing or empty key, missing `git` block, or empty `url` | Correct `spec.source` |
 | `NoFetcher` (False) | The cluster fetcher was not wired (controller misconfiguration) | Check the controller logs |
 | `CompareError` (False) | A transient comparison failure — API blip or a Git clone that timed out | Usually self-heals on backoff retry; check network/repo reachability |
 
