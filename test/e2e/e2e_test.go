@@ -43,10 +43,8 @@ const (
 	metricsRoleBindingName = "kube-drift-metrics-binding"
 )
 
-// driftManifests is applied to the workload cluster: a ConfigMap holding the
-// desired manifests plus a DriftCheck pointing at it. The desired manifest
-// describes a ConfigMap ("drift-target") that is deliberately never created in
-// the cluster, so the controller must report exactly one "new" drift.
+// driftManifests desires a "drift-target" ConfigMap that is never created,
+// so the controller must report exactly one "new" drift.
 const driftManifests = `apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -78,10 +76,8 @@ spec:
   interval: 15s
 `
 
-// kustomizeDriftCheck points a Kustomize source at the in-repo fixture overlay,
-// cloned anonymously over Git. The overlay renders "e2e-kustomize-target"
-// (namePrefix applied), which is never created, so exactly one "new" drift is
-// reported — proving the in-cluster Git clone + in-process kustomize build path.
+// Git-sourced fixtures are cloned from GitHub main, not this checkout, so an
+// edit under test/e2e/fixtures/ is exercised only after it merges.
 const kustomizeDriftCheck = `apiVersion: drift.somaz.io/v1alpha1
 kind: DriftCheck
 metadata:
@@ -98,10 +94,6 @@ spec:
   interval: 15s
 `
 
-// helmDriftCheck points a Helm source at the in-repo fixture chart, cloned over
-// Git. The chart renders "hc-target" (from .Release.Name), never created, so one
-// "new" drift is reported — proving the in-cluster Git clone + in-process Helm
-// render path.
 const helmDriftCheck = `apiVersion: drift.somaz.io/v1alpha1
 kind: DriftCheck
 metadata:
@@ -119,10 +111,7 @@ spec:
   interval: 15s
 `
 
-// notifyFixture deploys an HTTP echo receiver plus a drifting DriftCheck whose
-// notify webhook targets it. The echo pod logs each request body, so the test
-// can assert the Generic notification payload (carrying the DriftCheck name)
-// was delivered — proving the end-to-end webhook-notification path.
+// The echo receiver logs each request body; the test greps those logs for the DriftCheck name.
 const notifyFixture = `apiVersion: apps/v1
 kind: Deployment
 metadata:

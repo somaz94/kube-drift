@@ -24,9 +24,7 @@ COPY cmd/main.go cmd/main.go
 COPY api/ api/
 COPY internal/ internal/
 
-# Build with cache mounts for Go build cache and module cache
-# - Added -trimpath for reproducible builds
-# - Added ldflags to strip debug info, reduce binary size, and inject version
+# -trimpath for reproducible builds; -s -w strips debug info.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
@@ -44,7 +42,6 @@ ARG VERSION=dev
 ARG GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 
-# OCI image labels
 LABEL org.opencontainers.image.title="kube-drift" \
       org.opencontainers.image.description="A brief description of your K8s controller" \
       org.opencontainers.image.url="https://github.com/somaz94/kube-drift" \

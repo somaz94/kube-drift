@@ -1,9 +1,6 @@
 #!/bin/bash
-# Validate the kube-drift Helm chart: lint, template render, package, and CRD
-# presence. The chart currently ships the DriftCheck CRD only — controller
-# deployment/RBAC templates are not authored yet — so this checks chart
-# packaging rather than a live install. Run `make test-e2e` for a live,
-# kustomize-based deployment test.
+# Static Helm chart checks: lint, template render, package, CRD presence.
+# No live install here; `make test-e2e` covers a live kustomize-based deploy.
 set -euo pipefail
 
 RED='\033[0;31m'
