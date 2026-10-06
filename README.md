@@ -34,11 +34,11 @@ Where `kube-diff` answers "does the cluster match this directory of YAML right n
 
 - **`DriftCheck` CRD** (`drift.somaz.io/v1alpha1`) — declarative drift checks, one per desired-state source
 - **Pluggable sources** — desired manifests come from a `ConfigMap`, a `Git` repository, or a `Helm` chart / `Kustomize` overlay rendered **in-process** (no `helm`/`kustomize` binary, no shell-out)
-- **Scoped comparison** — narrow which live resources are compared via `target.namespaces` and `target.labelSelector`
+- **Scoped comparison** — compare only the desired manifests matching `target.namespaces` and `target.labelSelector`
 - **Scheduled re-evaluation** — configurable `interval` (default `5m`) for continuous drift detection
 - **Structured status** — per-resource drift entries plus a rolled-up summary (changed / new / deleted / unchanged), `lastCheckedAt`, `observedGeneration`, and standard conditions
 - **Webhook notifications** — Slack or generic-JSON webhooks fire when the drift state changes (detected or resolved), deduplicated so they don't repeat on every re-check; the URL can come from a `Secret`
-- **Opt-in broader read RBAC** — the controller ships with read access to `configmaps` only; the Helm chart adds `rbac.viewRole.enabled` (bind the built-in `view` ClusterRole) and `rbac.extraRules` (a custom read-only ClusterRole) knobs for comparing arbitrary kinds — both off by default
+- **Opt-in broader read RBAC** — the controller's own role reads only `configmaps` and `secrets`; the Helm chart adds `rbac.viewRole.enabled` (bind the built-in `view` ClusterRole) and `rbac.extraRules` (a custom read-only ClusterRole) knobs for comparing arbitrary kinds — both off by default
 - **Shared engine** — reuses the comparison engine extracted from `kube-diff`, so CLI and operator produce consistent results
 
 > Source-backend maturity: `ConfigMap`, `Git`, `Helm`, and `Kustomize` sources are implemented. `Helm`/`Kustomize` render from a Git checkout and are rendered in-process. Git clones **anonymously by default**, and can authenticate to private repositories via `source.git.auth` (Basic / Bearer / SSH) when set. Helm charts are expected to be self-contained (dependencies vendored under `charts/`); charts with external dependencies can fetch them at render time with `source.helm.dependencyBuild: true` — see the [Usage Guide](docs/USAGE.md).
@@ -49,8 +49,8 @@ Where `kube-diff` answers "does the cluster match this directory of YAML right n
 
 Each `DriftCheck` drives the following loop:
 
-1. **Load desired state** — fetch plain-YAML manifests from the configured `source`: ConfigMap key(s), or a Git repository cloned at `ref` with manifests read from `path`.
-2. **Read live state** — list the matching live objects, scoped by `target.namespaces` / `target.labelSelector`.
+1. **Load desired state** — fetch plain-YAML manifests from the configured `source`: ConfigMap key(s), or a Git repository cloned at `ref` with manifests read from `path`. Only manifests matching `target.namespaces` / `target.labelSelector` are kept.
+2. **Read live state** — fetch each desired object from the live cluster by group/kind/namespace/name.
 3. **Compare** — hand both sides to the `kube-diff` engine (`engine.Compare(...)`), producing a `[]*diff.Result`.
 4. **Map to status** — classify each result as `changed`, `new`, `deleted`, or `unchanged`, write the drifted entries + summary into `.status`, and stamp `lastCheckedAt`.
 5. **Requeue** — re-run after `spec.interval`.
@@ -138,7 +138,7 @@ spec:
       name: desired-manifests
       # namespace: default    # defaults to the DriftCheck's namespace
       # key: manifests.yaml    # omit to concatenate every key as a YAML stream
-  # Optionally narrow which resources are compared.
+  # Optionally compare only the desired manifests in these namespaces.
   target:
     namespaces:
       - default
@@ -179,8 +179,8 @@ spec:
 | `source.configMap.name` | string | ConfigMap name (required when `type: ConfigMap`) |
 | `source.configMap.namespace` | string | ConfigMap namespace; defaults to the DriftCheck's namespace |
 | `source.configMap.key` | string | Single data key; omit to concatenate every key as a YAML stream |
-| `target.namespaces` | list | Restrict comparison to these namespaces |
-| `target.labelSelector` | selector | Further restrict which desired manifests are compared |
+| `target.namespaces` | list | Compare only desired manifests in these namespaces; manifests without a namespace are skipped |
+| `target.labelSelector` | selector | Compare only desired manifests whose labels match |
 | `interval` | duration | How often to re-evaluate drift (default `5m`) |
 
 <br/>

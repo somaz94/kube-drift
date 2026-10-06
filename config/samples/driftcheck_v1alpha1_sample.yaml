@@ -42,7 +42,7 @@ spec:
     #     url: https://github.com/example/config.git
     #     ref: main
     #     path: overlays/prod                            # directory containing kustomization.yaml
-  # Optionally narrow which resources are compared.
+  # Optionally compare only the desired manifests in these namespaces.
   target:
     namespaces:
       - default

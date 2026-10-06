@@ -54,7 +54,7 @@ hack/                              # boilerplate.go.txt, bump-version.sh
 
 - **CRD**: `DriftCheck` (apiGroup `drift.somaz.io`, version `v1alpha1`).
   - `spec.source` — `{ type: Git|ConfigMap|Helm|Kustomize, git, configMap, helm, kustomize }`. `Helm`/`Kustomize` source their files from a nested `git` block and render in-process. `source.helm.dependencyBuild` (bool, default false) fetches declared-but-unvendored Helm dependencies over the network before rendering. `spec.notify.webhooks[]` (Slack/Generic, url or urlSecretRef) sends a message when the drift state changes (deduped via `status.lastNotifiedHash`).
-  - `spec.target` — `{ namespaces: [], labelSelector: {} }` — narrows which live resources are compared.
+  - `spec.target` — `{ namespaces: [], labelSelector: {} }` — filters the desired manifests before comparison (`internal/source/target.go`).
   - `spec.interval` — re-evaluation cadence (default `5m`).
   - `status` — `lastCheckedAt`, `driftedResources[]` ({apiVersion,kind,name,namespace,status}), `summary` {changed,new,deleted,unchanged}, `observedGeneration`, `lastNotifiedHash`, `conditions`.
   - Per-resource drift status enum: `unchanged | changed | new | deleted`.
@@ -70,7 +70,7 @@ hack/                              # boilerplate.go.txt, bump-version.sh
 
 `Reconcile` (in `driftcheck_controller.go`):
 
-1. Load desired manifests from `spec.source` via `buildSource` (ConfigMap / Git / Helm / Kustomize).
+1. Load desired manifests from `spec.source` via `buildSource` (ConfigMap / Git / Helm / Kustomize), narrowed by `spec.target` via `applyTarget`.
 2. Read live objects via the kube-diff cluster fetcher (built from the manager's rest.Config).
 3. Call `engine.Run(...)` from kube-diff → `[]*diff.Result`.
 4. Classify each result (changed/new/deleted/unchanged), populate `status.driftedResources` + `status.summary`, stamp `lastCheckedAt` and `observedGeneration`, set the `Ready` condition.

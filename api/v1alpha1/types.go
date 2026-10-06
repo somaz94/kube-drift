@@ -207,15 +207,15 @@ type NotifySpec struct {
 	Webhooks []Webhook `json:"webhooks"`
 }
 
-// Target narrows which live resources the desired manifests are matched against.
-// An empty Target matches by the identity (group/kind/namespace/name) carried in
-// each desired manifest.
+// Target filters the desired manifests before comparison. An empty Target
+// compares every desired manifest.
 type Target struct {
-	// Namespaces restricts comparison to these namespaces. Empty means the
-	// namespace carried by each manifest is used as-is.
+	// Namespaces keeps only desired manifests whose metadata.namespace is listed.
+	// When set, manifests without a namespace (cluster-scoped kinds, or manifests
+	// that omit it) are skipped. Empty means no namespace filter.
 	Namespaces []string `json:"namespaces,omitempty"`
 
-	// LabelSelector further restricts which desired manifests are compared.
+	// LabelSelector keeps only desired manifests whose labels match.
 	LabelSelector *metav1.LabelSelector `json:"labelSelector,omitempty"`
 }
 
@@ -224,7 +224,7 @@ type DriftCheckSpec struct {
 	// Source is where the desired-state manifests come from.
 	Source Source `json:"source"`
 
-	// Target narrows which resources are compared.
+	// Target filters which desired manifests are compared.
 	Target Target `json:"target,omitempty"`
 
 	// Interval is how often the drift check is re-evaluated.

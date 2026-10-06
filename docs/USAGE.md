@@ -46,7 +46,7 @@ A `DriftCheck` (`drift.somaz.io/v1alpha1`) declares one drift comparison:
   - `Git` — plain-YAML manifests in a Git repository, cloned at a `ref` and read from a `path`
   - `Helm` — a Helm chart in a Git repository, rendered **in-process** with the given release name / namespace / values
   - `Kustomize` — a Kustomize overlay in a Git repository, built **in-process**
-- **`spec.target`** — narrows which live resources are compared (`namespaces`, `labelSelector`). Empty means each manifest is matched by its own group/kind/namespace/name.
+- **`spec.target`** — filters the desired manifests before comparison (`namespaces`, `labelSelector`). Empty compares every manifest; with `namespaces` set, manifests without a namespace (cluster-scoped kinds, or a missing `metadata.namespace`) are skipped.
 - **`spec.interval`** — how often the check re-runs (default `5m`).
 - **`status`** — the result: a per-resource `driftedResources[]` list, a rolled-up `summary`, `lastCheckedAt`, and standard `conditions`.
 
@@ -475,6 +475,7 @@ kubectl get driftcheck <name> -o jsonpath='{.status.conditions}' | jq
 |---|---|---|
 | `DriftEvaluated` (True) | The check ran successfully | — |
 | `SourceError` (False) | Desired manifests could not be loaded — missing ConfigMap, missing or empty key, missing `git` block, or empty `url` | Correct `spec.source` |
+| `InvalidTarget` (False) | `spec.target.labelSelector` cannot be parsed (e.g. an unknown operator) | Correct `spec.target` |
 | `NoFetcher` (False) | The cluster fetcher was not wired (controller misconfiguration) | Check the controller logs |
 | `CompareError` (False) | A transient comparison failure — API blip or a Git clone that timed out | Usually self-heals on backoff retry; check network/repo reachability |
 

@@ -12,6 +12,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -116,6 +117,9 @@ func (r *DriftCheckReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// retry on the interval rather than hot-looping.
 		return r.permanentFail(ctx, &dc, interval, "SourceError", err)
 	}
+	if src, err = applyTarget(src, dc.Spec.Target); err != nil {
+		return r.permanentFail(ctx, &dc, interval, "InvalidTarget", err)
+	}
 
 	results, err := engine.Run(ctx, src, r.Fetcher, diff.DefaultCompareOptions())
 	if err != nil {
@@ -155,6 +159,19 @@ func (r *DriftCheckReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		"new", dc.Status.Summary.New,
 		"deleted", dc.Status.Summary.Deleted)
 	return ctrl.Result{RequeueAfter: interval}, nil
+}
+
+// applyTarget narrows src to spec.target before comparison.
+func applyTarget(src source.Source, t driftv1alpha1.Target) (source.Source, error) {
+	var sel labels.Selector
+	if t.LabelSelector != nil {
+		s, err := metav1.LabelSelectorAsSelector(t.LabelSelector)
+		if err != nil {
+			return nil, fmt.Errorf("invalid target.labelSelector: %w", err)
+		}
+		sel = s
+	}
+	return driftsource.NewTargetFilter(src, t.Namespaces, sel), nil
 }
 
 // buildSource resolves the DriftCheck's source into a kube-diff source.Source.

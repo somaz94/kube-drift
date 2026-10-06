@@ -468,3 +468,92 @@ func TestConfigMapManifests_EmptyKeyedEntry(t *testing.T) {
 		}
 	}
 }
+
+func TestReconcile_TargetNarrowsComparison(t *testing.T) {
+	desired := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: nameDesired, Namespace: nsDefault},
+		Data: map[string]string{"m.yaml": `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: in-default-web
+  namespace: default
+  labels: {tier: web}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: in-default-db
+  namespace: default
+  labels: {tier: db}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: in-other-web
+  namespace: other
+  labels: {tier: web}
+`},
+	}
+
+	tests := []struct {
+		name   string
+		target myv1.Target
+		want   int
+	}{
+		{"empty target compares everything", myv1.Target{}, 3},
+		{"namespaces", myv1.Target{Namespaces: []string{nsDefault}}, 2},
+		{"labelSelector", myv1.Target{LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"tier": "web"}}}, 2},
+		{"both", myv1.Target{
+			Namespaces:    []string{nsDefault},
+			LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"tier": "web"}},
+		}, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dc := newDriftCheck()
+			dc.Spec.Target = tt.target
+			r := reconcilerFor(newScheme(t), &fakeFetcher{}, dc, desired.DeepCopy())
+			if _, err := r.Reconcile(context.Background(), ctrl.Request{
+				NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
+			}); err != nil {
+				t.Fatalf("Reconcile() error = %v", err)
+			}
+			var got myv1.DriftCheck
+			if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got); err != nil {
+				t.Fatal(err)
+			}
+			if got.Status.Summary.New != tt.want {
+				t.Errorf("summary.new = %d, want %d (%+v)", got.Status.Summary.New, tt.want, got.Status.DriftedResources)
+			}
+		})
+	}
+}
+
+func TestReconcile_InvalidTargetSelector(t *testing.T) {
+	dc := newDriftCheck()
+	dc.Spec.Target.LabelSelector = &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+		{Key: "tier", Operator: "Bogus", Values: []string{"web"}},
+	}}
+	desired := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: nameDesired, Namespace: nsDefault},
+		Data:       map[string]string{"m.yaml": "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: default\n"},
+	}
+	r := reconcilerFor(newScheme(t), &fakeFetcher{}, dc, desired)
+
+	res, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
+	})
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v, want nil (config errors retry on the interval)", err)
+	}
+	if res.RequeueAfter != 5*time.Minute {
+		t.Errorf("RequeueAfter = %v, want 5m", res.RequeueAfter)
+	}
+	var got myv1.DriftCheck
+	if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got); err != nil {
+		t.Fatal(err)
+	}
+	if c := got.Status.Conditions; len(c) != 1 || c[0].Reason != "InvalidTarget" {
+		t.Errorf("conditions = %+v, want a single InvalidTarget condition", c)
+	}
+}

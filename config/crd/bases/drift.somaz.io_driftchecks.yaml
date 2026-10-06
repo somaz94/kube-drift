@@ -345,11 +345,11 @@ spec:
                 - message: kustomize is required when type is Kustomize
                   rule: self.type != 'Kustomize' || has(self.kustomize)
               target:
-                description: Target narrows which resources are compared.
+                description: Target filters which desired manifests are compared.
                 properties:
                   labelSelector:
-                    description: LabelSelector further restricts which desired manifests
-                      are compared.
+                    description: LabelSelector keeps only desired manifests whose
+                      labels match.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
@@ -396,8 +396,9 @@ spec:
                     x-kubernetes-map-type: atomic
                   namespaces:
                     description: |-
-                      Namespaces restricts comparison to these namespaces. Empty means the
-                      namespace carried by each manifest is used as-is.
+                      Namespaces keeps only desired manifests whose metadata.namespace is listed.
+                      When set, manifests without a namespace (cluster-scoped kinds, or manifests
+                      that omit it) are skipped. Empty means no namespace filter.
                     items:
                       type: string
                     type: array
