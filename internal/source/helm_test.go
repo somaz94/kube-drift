@@ -75,6 +75,25 @@ func TestBuildDependencies_NoDeps(t *testing.T) {
 	}
 }
 
+// An oci:// version range makes Helm's resolver list registry tags, which
+// dereferenced a nil RegistryClient and crashed the process. 127.0.0.1:1 refuses
+// the connection, so the test stays offline.
+func TestBuildDependencies_OCIVersionRange(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "chart")
+	mustWrite(t, filepath.Join(dir, "Chart.yaml"), "apiVersion: v2\nname: demo\nversion: 0.1.0\n"+
+		"dependencies:\n- name: dep\n  version: \"^1.0.0\"\n  repository: oci://127.0.0.1:1/charts\n")
+	if err := buildDependencies(dir); err == nil {
+		t.Fatal("expected an error listing tags from an unreachable registry, got nil")
+	}
+}
+
+func TestRunBuildDeps_RecoversPanic(t *testing.T) {
+	err := runBuildDeps(context.Background(), func(string) error { panic("boom") }, "chart")
+	if err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("runBuildDeps error = %v, want the recovered panic", err)
+	}
+}
+
 func TestRenderHelmChart_WithCRDs(t *testing.T) {
 	dir := t.TempDir()
 	writeChart(t, dir)

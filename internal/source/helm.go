@@ -17,6 +17,7 @@ import (
 	"helm.sh/helm/v3/pkg/downloader"
 	"helm.sh/helm/v3/pkg/engine"
 	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/releaseutil"
 	"helm.sh/helm/v3/pkg/repo"
 
@@ -103,7 +104,16 @@ func runBuildDeps(ctx context.Context, build func(chartDir string) error, chartD
 		ctx = context.Background()
 	}
 	done := make(chan error, 1)
-	go func() { done <- build(chartDir) }()
+	go func() {
+		// This goroutine is outside controller-runtime's reconcile recover, so an
+		// SDK panic here would take down the whole manager.
+		defer func() {
+			if p := recover(); p != nil {
+				done <- fmt.Errorf("helm dependency build panicked: %v", p)
+			}
+		}()
+		done <- build(chartDir)
+	}()
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("helm dependency build canceled: %w", ctx.Err())
@@ -113,8 +123,8 @@ func runBuildDeps(ctx context.Context, build func(chartDir string) error, chartD
 }
 
 // buildDependencies fetches the chart's declared dependencies into charts/ via
-// the Helm SDK (no `helm` binary in the image). HTTP(S) and exact-version oci://
-// repositories resolve; "@alias" names fail, as the controller has no repo config.
+// the Helm SDK (no `helm` binary in the image). HTTP(S) and oci:// repositories
+// resolve; "@alias" names fail, as the controller has no repo config.
 func buildDependencies(chartDir string) (err error) {
 	ch, err := loader.Load(chartDir)
 	if err != nil {
@@ -139,9 +149,16 @@ func buildDependencies(chartDir string) (err error) {
 		return fmt.Errorf("write helm repo config: %w", err)
 	}
 
+	// Without a RegistryClient, Helm's resolver dereferences nil on an oci:// version range.
+	registryClient, err := registry.NewClient(registry.ClientOptCredentialsFile(filepath.Join(repoDir, "registry.json")))
+	if err != nil {
+		return fmt.Errorf("create helm registry client: %w", err)
+	}
+
 	man := &downloader.Manager{
 		Out:              io.Discard,
 		ChartPath:        chartDir,
+		RegistryClient:   registryClient,
 		Getters:          getter.All(settings),
 		RepositoryConfig: settings.RepositoryConfig,
 		RepositoryCache:  settings.RepositoryCache,
@@ -154,8 +171,8 @@ func buildDependencies(chartDir string) (err error) {
 }
 
 // dependencyRepoFile registers each distinct HTTP(S) dependency repository so
-// Manager.Update can resolve it. Everything else is left to Update: it pulls
-// exact-version oci:// refs itself and reports an unknown "@alias" as an error.
+// Manager.Update can resolve it. Everything else is left to Update: it resolves
+// oci:// refs through its RegistryClient and reports an unknown "@alias" as an error.
 func dependencyRepoFile(deps []*chart.Dependency) *repo.File {
 	rf := repo.NewFile()
 	seen := map[string]bool{}

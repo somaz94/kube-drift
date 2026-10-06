@@ -124,7 +124,7 @@ type HelmSource struct {
 	// vendored. Defaults to false — the chart is expected to ship self-contained
 	// with its dependencies committed under charts/. Enabling it makes the
 	// controller reach each dependency's repository over the network on every
-	// render, so the repositories must be HTTP(S) URLs reachable from the pod.
+	// render, so each HTTP(S) or oci:// repository must be reachable from the pod.
 	// +optional
 	DependencyBuild bool `json:"dependencyBuild,omitempty"`
 }

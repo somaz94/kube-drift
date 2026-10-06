@@ -314,8 +314,8 @@ spec:
   interval: 10m
 ```
 
-- Default is `false`. Enabling it makes the controller reach each dependency's repository **over the network on every render**, so the dependency repositories must be HTTP(S) URLs reachable from the pod.
-- Named `@alias` repositories are **not** supported; `oci://` dependency URLs are resolved natively.
+- Default is `false`. Enabling it makes the controller reach each dependency's repository **over the network on every render**, so each dependency repository (HTTP(S) or `oci://`) must be reachable from the pod.
+- Named `@alias` repositories are **not** supported; `oci://` dependencies resolve natively, including version ranges.
 
 <br/>
 
