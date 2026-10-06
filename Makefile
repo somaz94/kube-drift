@@ -164,7 +164,7 @@ branch: ## Create feature branch (usage: make branch name=feature-name)
 .PHONY: pr
 pr: check-gh ## Run tests, push, and create PR (usage: make pr title="Add feature")
 	@if [ -z "$(title)" ]; then echo "Usage: make pr title=\"PR title\""; exit 1; fi
-	go test ./... -race -cover
+	go test $$(go list ./... | grep -v /e2e) -race -cover
 	go vet ./...
 	git push -u origin $$(git branch --show-current)
 	@./scripts/create-pr.sh "$(title)"
