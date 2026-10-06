@@ -8,9 +8,8 @@ fullnameOverride: ""
 # Empty = use the release namespace (the `-n` flag). Set this only to pin a fixed
 # namespace regardless of the release namespace.
 namespace: ""
-# Create the target namespace as part of the release. Leave false when installing
-# with `helm install --create-namespace` (the documented path) to avoid an
-# ownership conflict on the namespace object.
+# Create `namespace` above (no-op while it is empty). Leave false with
+# `helm install --create-namespace` to avoid a namespace ownership conflict.
 namespaceCreate: false
 
 image:
@@ -27,17 +26,16 @@ serviceAccount:
   name: ""
   annotations: {}
 
-# RBAC (ClusterRole/Role and their bindings) creation.
+# create=false also suppresses viewRole and extraRules below.
 rbac:
   create: true
   # Bind the controller ServiceAccount to the built-in `view` ClusterRole so it
-  # can read arbitrary resource kinds for drift comparison. `view` is read-only
-  # and excludes Secrets and RBAC objects by design. Off by default — the
-  # controller ships with read access to `configmaps` only.
+  # can read arbitrary kinds for comparison (`view` excludes Secrets and RBAC).
+  # Off by default: the controller's own role reads only ConfigMaps and Secrets.
   viewRole:
     enabled: false
   # Extra read rules granted to the controller ServiceAccount for comparing
-  # additional kinds not covered by `configmaps` or the `view` role above. When
+  # additional kinds not covered by the controller's own role or `view`. When
   # non-empty, a dedicated ClusterRole (+ binding) is created. Use read verbs
   # only (get/list/watch) — the controller never writes to compared resources.
   # Each entry is a standard RBAC policy rule, e.g.:
@@ -51,7 +49,6 @@ rbac:
 leaderElection:
   enabled: true
 
-# Controller manager metrics endpoint.
 metrics:
   enabled: true
   # Serve metrics over HTTPS with authn/authz (recommended). Set false for HTTP.

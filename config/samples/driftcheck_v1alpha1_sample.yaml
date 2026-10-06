@@ -46,11 +46,9 @@ spec:
   target:
     namespaces:
       - default
-  # How often to re-evaluate drift.
+  # Re-check cadence (default 5m); also the retry delay after a source error.
   interval: 5m
-  # Optionally notify when the drift state changes (detected or resolved).
-  # A message is sent only when the set of drifted resources changes — not on
-  # every re-check.
+  # Optional: notify only when the set of drifted resources changes (detected or resolved).
   # notify:
   #   webhooks:
   #     - type: Slack                     # {"text": ...} incoming-webhook payload

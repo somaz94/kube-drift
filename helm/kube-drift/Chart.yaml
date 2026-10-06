@@ -5,21 +5,17 @@ type: application
 version: 0.4.0
 appVersion: "v0.4.0"
 
-# Dependencies and requirements
 kubeVersion: ">=1.25.0-0"
 
-# Keywords and categories for documentation
 keywords:
   - kubernetes
   - controller
   - operator
 
-# Home page, sources, and documentation
 home: https://github.com/somaz94/kube-drift
 sources:
   - https://github.com/somaz94/kube-drift
 
-# Maintainer information
 maintainers:
   - name: somaz94
     url: https://github.com/somaz94
