@@ -7,11 +7,8 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-// driftedResources reports, per DriftCheck, how many compared resources fall
-// into each drift status. It is a gauge (not a counter) because every reconcile
-// overwrites the current tally, so it is intentionally named without a "_total"
-// suffix. The status label carries the kube-diff values: changed, new, deleted,
-// unchanged.
+// driftedResources is a gauge, not a counter (each reconcile overwrites the
+// tally), so it deliberately has no "_total" suffix.
 var driftedResources = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "kube_drift_resources",
@@ -36,7 +33,7 @@ type Recorder struct{}
 func NewRecorder() *Recorder { return &Recorder{} }
 
 // RecordDrift sets the per-status resource gauge for a single DriftCheck. The
-// "added" argument maps to the "new" status label (new is a Go keyword).
+// "added" argument feeds the "new" label (naming it new would shadow the builtin).
 func (r *Recorder) RecordDrift(name, namespace string, changed, added, deleted, unchanged int) {
 	if r == nil {
 		return

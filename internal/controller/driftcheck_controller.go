@@ -82,10 +82,9 @@ type DriftCheckReconciler struct {
 // engine, records the per-resource drift into status, and requeues after the
 // configured interval.
 //
-// NOTE: comparing arbitrary resources also requires the operator's
-// ServiceAccount to hold read access to those kinds (e.g. bound to the built-in
-// "view" ClusterRole). Only ConfigMap read is declared above; broader read
-// access is granted at install time.
+// NOTE: the markers above grant read on ConfigMaps and Secrets only. Any other
+// compared kind needs extra read RBAC (the chart's rbac.viewRole/extraRules), or
+// kube-diff reports it as "new" (engine.Compare maps any fetch error to StatusNew).
 func (r *DriftCheckReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
@@ -120,11 +119,8 @@ func (r *DriftCheckReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	results, err := engine.Run(ctx, src, r.Fetcher, diff.DefaultCompareOptions())
 	if err != nil {
-		// Comparison failures are typically transient (cluster API blips, a Git
-		// clone that timed out): record the condition (best effort) and return
-		// the error so controller-runtime retries with backoff instead of
-		// waiting a full interval, and so it surfaces in reconcile-error
-		// metrics.
+		// engine.Run fails on Load (clone, render) or diff errors, never on cluster reads.
+		// Return it so controller-runtime backs off and counts it; the last gauge stays.
 		_ = r.markNotReady(ctx, &dc, "CompareError", err)
 		return ctrl.Result{}, err
 	}
@@ -256,8 +252,6 @@ func (r *DriftCheckReconciler) resolveGitAuth(ctx context.Context, ns string, sp
 	}
 	secretName := ns + "/" + spec.SecretRef.Name
 
-	// requireStr reads a required non-secret string key (e.g. a username),
-	// trimming surrounding whitespace.
 	requireStr := func(key string) (string, error) {
 		v := strings.TrimSpace(string(sec.Data[key]))
 		if v == "" {
@@ -265,9 +259,8 @@ func (r *DriftCheckReconciler) resolveGitAuth(ctx context.Context, ns string, sp
 		}
 		return v, nil
 	}
-	// requireSecret reads a required credential key (a password or token),
-	// stripping only a trailing newline — a common Secret artifact — so any
-	// other character in the credential is preserved verbatim.
+	// Credentials strip only trailing CR/LF (a common Secret artifact), not
+	// TrimSpace: other whitespace may be part of the value.
 	requireSecret := func(key string) (string, error) {
 		v := strings.TrimRight(string(sec.Data[key]), "\r\n")
 		if v == "" {
@@ -313,11 +306,9 @@ func (r *DriftCheckReconciler) resolveGitAuth(ctx context.Context, ns string, sp
 	}
 }
 
-// configMapManifests extracts the YAML manifest bytes from a ConfigMap, reading
-// from both Data and BinaryData. When key is set, that single entry is used;
-// otherwise every entry is concatenated (in sorted key order for determinism)
-// as a multi-document YAML stream. It errors when the selected content is empty
-// so an empty ConfigMap surfaces as a condition rather than a silent no-op.
+// configMapManifests returns the entry named by key (Data, then BinaryData), or
+// every entry joined in sorted key order as a multi-doc stream. Only the no-key
+// path rejects empty content, so an empty ConfigMap surfaces as a condition.
 func configMapManifests(cm *corev1.ConfigMap, key string) ([]byte, error) {
 	get := func(k string) ([]byte, bool) {
 		if v, ok := cm.Data[k]; ok {
@@ -402,15 +393,9 @@ func (r *DriftCheckReconciler) markNotReady(ctx context.Context, dc *driftv1alph
 }
 
 // permanentFail records a not-ready condition for a non-transient failure and
-// requeues after the interval. If the status write itself fails (e.g. a
-// conflict), the error is returned so controller-runtime retries promptly
-// instead of losing the condition until the next interval.
-//
-// It also clears the drift gauges: a persistent failure (missing source,
-// unsupported/unknown type, no fetcher) means there is no valid drift reading,
-// so a stale last-known-good count must not linger in the metrics. Transient
-// compare failures take the markNotReady path instead and keep the last gauge
-// while controller-runtime retries with backoff.
+// requeues after the interval; a failed status write is returned for prompt retry.
+// It also clears the drift gauges, since there is no valid reading (missing source,
+// unknown type, no fetcher); transient compare failures keep the last gauge.
 func (r *DriftCheckReconciler) permanentFail(ctx context.Context, dc *driftv1alpha1.DriftCheck, interval time.Duration, reason string, cause error) (ctrl.Result, error) {
 	r.Metrics.Delete(dc.Name, dc.Namespace)
 	if err := r.markNotReady(ctx, dc, reason, cause); err != nil {

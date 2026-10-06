@@ -69,8 +69,7 @@ type Notifier interface {
 
 // Sender is the default HTTP-backed Notifier.
 type Sender struct {
-	// Client sends the webhook request. When nil a client with a 10s timeout
-	// is used.
+	// Client sends the webhook request; nil falls back to http.DefaultClient (no timeout).
 	Client *http.Client
 }
 
@@ -124,7 +123,7 @@ func payload(t Type, ev Event) ([]byte, error) {
 	}
 }
 
-// genericPayload is the structured JSON body for a Generic webhook.
+// genericBody is the structured JSON body for a Generic webhook.
 type genericBody struct {
 	DriftCheck string     `json:"driftCheck"`
 	Namespace  string     `json:"namespace,omitempty"`

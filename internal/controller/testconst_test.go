@@ -1,9 +1,7 @@
 package controller
 
-// Fixture values shared across the controller tests. Kept in one place so a
-// repeated namespace, kind, or Secret field reads the same in every test.
-// Secret *key* names are not here — those live with the production code in
-// driftcheck_controller.go, because they are part of the Secret contract.
+// Fixture values shared across the controller tests. Secret-contract key names
+// live in driftcheck_controller.go; secretKeyURL is a fixture's own key.
 const (
 	nsDefault = "default"
 

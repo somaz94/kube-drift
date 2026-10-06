@@ -17,18 +17,11 @@ import (
 	"github.com/somaz94/kube-drift/internal/notify"
 )
 
-// notify delivers a drift notification to the configured webhooks when the
-// drift set has changed since the last delivery. It is a no-op when no webhooks
-// are configured.
-//
-// Delivery is best-effort with at-least-once semantics: a webhook that errors
-// is logged and surfaced as an event, and LastNotifiedHash is left unchanged so
-// the next reconcile retries. Because dedup is tracked by a single hash (not
-// per-webhook), a retry re-sends to every webhook — including ones that already
-// succeeded. Likewise, if the hash-persisting status write fails after a
-// successful send, the next reconcile re-sends. Only a status-write failure is
-// returned, so controller-runtime retries promptly instead of losing the
-// fingerprint.
+// notify sends a drift notification when the drift set changed since the last
+// delivery (dedup via LastNotifiedHash; no-op without webhooks). Delivery is
+// at-least-once: any webhook error leaves the hash unchanged, so the next
+// reconcile re-sends to every webhook, including ones that succeeded. Only a
+// status-write failure is returned, so the fingerprint is retried promptly.
 func (r *DriftCheckReconciler) notify(ctx context.Context, dc *driftv1alpha1.DriftCheck) error {
 	if dc.Spec.Notify == nil || len(dc.Spec.Notify.Webhooks) == 0 {
 		return nil
@@ -37,7 +30,6 @@ func (r *DriftCheckReconciler) notify(ctx context.Context, dc *driftv1alpha1.Dri
 
 	hash := driftHash(dc.Status.DriftedResources)
 	if hash == dc.Status.LastNotifiedHash {
-		// Drift state unchanged since the last notification.
 		return nil
 	}
 	resolved := driftCount(dc.Status.Summary) == 0
@@ -146,14 +138,10 @@ func driftCount(s driftv1alpha1.DriftSummary) int {
 	return s.Changed + s.New + s.Deleted
 }
 
-// driftHash fingerprints the drift set so notifications fire only when it
-// changes. Only the drifted resources are hashed — the summary counts are fully
-// derived from this list, so including them (in particular the unrelated
-// Unchanged tally) would trigger spurious re-notifications when a matching
-// resource is added or removed while the drift set is identical. Resources are
-// sorted first so the fingerprint is independent of the order the comparison
-// engine returns them in. An empty list hashes to a fixed non-empty digest, so
-// it never collides with the empty LastNotifiedHash sentinel.
+// driftHash fingerprints the drift set for notification dedup. Only drifted
+// resources are hashed (sorted, so engine order is irrelevant): hashing the
+// Unchanged tally would re-notify when an in-sync resource comes or goes. An
+// empty set hashes to a non-empty digest, never the "" never-notified sentinel.
 func driftHash(drifted []driftv1alpha1.DriftedResource) string {
 	keys := make([]string, len(drifted))
 	for i, d := range drifted {

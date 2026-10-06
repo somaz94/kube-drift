@@ -94,8 +94,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Build the kube-diff cluster fetcher from the manager's REST config so the
-	// controller can read live cluster state for comparison.
 	fetcher, err := cluster.NewFetcherFromConfig(mgr.GetConfig())
 	if err != nil {
 		setupLog.Error(err, "unable to build cluster fetcher")
@@ -108,8 +106,7 @@ func main() {
 		Fetcher:  fetcher,
 		Metrics:  metrics.NewRecorder(),
 		Notifier: notify.NewSender(),
-		// SA1019: GetEventRecorder returns the events.k8s.io/v1 recorder, whose
-		// Eventf signature differs. Migrating the event surface is tracked separately.
+		// SA1019: GetEventRecorder (events.k8s.io/v1) has a different Eventf signature.
 		//nolint:staticcheck
 		Recorder: mgr.GetEventRecorderFor("driftcheck-controller"),
 	}).SetupWithManager(mgr); err != nil {
