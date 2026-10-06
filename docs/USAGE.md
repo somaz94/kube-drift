@@ -388,7 +388,7 @@ The `status` label is one of `changed` / `new` / `deleted` / `unchanged`. The me
 
 ## RBAC for non-ConfigMap kinds
 
-The controller only declares read access to `configmaps` by default. To compare other kinds (Deployments, Services, …), the operator's ServiceAccount needs read access to them.
+The controller declares read access only to `configmaps` and `secrets` by default. To compare other kinds (Deployments, Services, …), the operator's ServiceAccount needs `get` on them; without it the check fails with a `FetchError` condition rather than reporting the objects as new drift.
 
 **Helm install (recommended).** The chart exposes two opt-in RBAC knobs, both off by default:
 
@@ -477,6 +477,7 @@ kubectl get driftcheck <name> -o jsonpath='{.status.conditions}' | jq
 | `SourceError` (False) | Desired manifests could not be loaded — missing ConfigMap, missing or empty key, missing `git` block, or empty `url` | Correct `spec.source` |
 | `InvalidTarget` (False) | `spec.target.labelSelector` cannot be parsed (e.g. an unknown operator) | Correct `spec.target` |
 | `NoFetcher` (False) | The cluster fetcher was not wired (controller misconfiguration) | Check the controller logs |
+| `FetchError` (False) | Reading a live object was forbidden or unauthorized — usually missing read RBAC for a compared kind | Grant read access (see [RBAC](#rbac-for-non-configmap-kinds)); retried on the next `interval` |
 | `CompareError` (False) | A transient comparison failure — API blip or a Git clone that timed out | Usually self-heals on backoff retry; check network/repo reachability |
 
 Controller logs:
@@ -491,4 +492,4 @@ kubectl -n kube-drift-system logs deploy/kube-drift-controller-manager -f
 
 - **Git private repos via `auth` only** — the top-level Git / Helm / Kustomize clone supports private repositories through `source.git.auth` (Basic / Bearer / SSH); without `auth` the clone is anonymous. Remote Kustomize bases and Helm dependencies fetched via `dependencyBuild` are still retrieved anonymously.
 - **Self-contained Helm charts by default** — chart dependencies are expected to be vendored under `charts/`. Charts with external dependencies can opt into `source.helm.dependencyBuild: true`, which fetches them at render time over the network (HTTP(S) or `oci://` repositories only; named `@alias` repos are unsupported).
-- **ConfigMap read RBAC by default** — comparing other kinds requires granting read access, via the chart's `rbac.viewRole` / `rbac.extraRules` knobs (Helm) or a manual ClusterRoleBinding (Kustomize) (see [RBAC](#rbac-for-non-configmap-kinds)).
+- **ConfigMap / Secret read RBAC by default** — comparing other kinds requires granting read access, via the chart's `rbac.viewRole` / `rbac.extraRules` knobs (Helm) or a manual ClusterRoleBinding (Kustomize) (see [RBAC](#rbac-for-non-configmap-kinds)).

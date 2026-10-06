@@ -9,9 +9,11 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -29,16 +31,21 @@ import (
 const reasonSourceError = "SourceError"
 
 // fakeFetcher implements kube-diff's cluster.ResourceFetcher. A resource keyed
-// by name is returned as-is; anything else returns notFound (→ "new").
+// by name is returned as-is; err, when set, is returned for every lookup;
+// anything else is NotFound (→ "new").
 type fakeFetcher struct {
 	objs map[string]*unstructured.Unstructured
+	err  error
 }
 
-func (f *fakeFetcher) Get(_ context.Context, _, _, _, name string) (*unstructured.Unstructured, error) {
+func (f *fakeFetcher) Get(_ context.Context, _, kind, _, name string) (*unstructured.Unstructured, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
 	if obj, ok := f.objs[name]; ok {
 		return obj, nil
 	}
-	return nil, errors.New("not found")
+	return nil, apierrors.NewNotFound(schema.GroupResource{Resource: kind}, name)
 }
 
 func newScheme(t *testing.T) *runtime.Scheme {
@@ -524,6 +531,47 @@ metadata:
 			}
 			if got.Status.Summary.New != tt.want {
 				t.Errorf("summary.new = %d, want %d (%+v)", got.Status.Summary.New, tt.want, got.Status.DriftedResources)
+			}
+		})
+	}
+}
+
+func TestReconcile_FetchErrors(t *testing.T) {
+	gr := schema.GroupResource{Resource: "configmaps"}
+	tests := []struct {
+		name      string
+		err       error
+		reason    string
+		permanent bool
+	}{
+		{"forbidden waits for the interval", apierrors.NewForbidden(gr, "x", errors.New("no rbac")), "FetchError", true},
+		{"unauthorized waits for the interval", apierrors.NewUnauthorized("token expired"), "FetchError", true},
+		{"timeout backs off", apierrors.NewServerTimeout(gr, "get", 1), "CompareError", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desired := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: nameDesired, Namespace: nsDefault},
+				Data:       map[string]string{"m.yaml": "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: default\n"},
+			}
+			r := reconcilerFor(newScheme(t), &fakeFetcher{err: tt.err}, newDriftCheck(), desired)
+
+			res, err := r.Reconcile(context.Background(), ctrl.Request{
+				NamespacedName: types.NamespacedName{Name: "dc", Namespace: nsDefault},
+			})
+			if tt.permanent {
+				if err != nil || res.RequeueAfter != 5*time.Minute {
+					t.Errorf("Reconcile() = %+v, %v; want RequeueAfter=5m, nil", res, err)
+				}
+			} else if err == nil {
+				t.Error("Reconcile() error = nil, want the fetch error returned for backoff")
+			}
+			var got myv1.DriftCheck
+			if err := r.Get(context.Background(), types.NamespacedName{Name: "dc", Namespace: nsDefault}, &got); err != nil {
+				t.Fatal(err)
+			}
+			if c := got.Status.Conditions; len(c) != 1 || c[0].Reason != tt.reason {
+				t.Errorf("conditions = %+v, want a single %s condition", c, tt.reason)
 			}
 		})
 	}

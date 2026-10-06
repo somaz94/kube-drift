@@ -85,7 +85,7 @@ type DriftCheckReconciler struct {
 //
 // NOTE: the markers above grant read on ConfigMaps and Secrets only. Any other
 // compared kind needs extra read RBAC (the chart's rbac.viewRole/extraRules), or
-// kube-diff reports it as "new" (engine.Compare maps any fetch error to StatusNew).
+// the check fails with a FetchError condition.
 func (r *DriftCheckReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
@@ -123,7 +123,11 @@ func (r *DriftCheckReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	results, err := engine.Run(ctx, src, r.Fetcher, diff.DefaultCompareOptions())
 	if err != nil {
-		// engine.Run fails on Load (clone, render) or diff errors, never on cluster reads.
+		if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
+			// Missing read RBAC does not heal on backoff, so wait for the interval.
+			return r.permanentFail(ctx, &dc, interval, "FetchError", err)
+		}
+		// Load (clone, render), diff, and non-NotFound cluster read errors, e.g. a timeout.
 		// Return it so controller-runtime backs off and counts it; the last gauge stays.
 		_ = r.markNotReady(ctx, &dc, "CompareError", err)
 		return ctrl.Result{}, err
