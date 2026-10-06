@@ -212,6 +212,8 @@ Per-resource `status` values: `unchanged`, `changed`, `new`, `deleted`.
 - [x] Git credential support for private repositories — `source.git.auth` (Basic / Bearer / SSH), also on `source.helm.git.auth` and `source.kustomize.git.auth`
 - [x] Read-RBAC story for comparing arbitrary resource kinds — chart knobs `rbac.viewRole.enabled` (bind the built-in `view` ClusterRole) and `rbac.extraRules` (custom read-only ClusterRole), off by default
 - [x] Opt-in Helm chart dependency build — `source.helm.dependencyBuild` fetches declared-but-unvendored dependencies at render time (default off; vendored `charts/` remains the reproducible default)
+- [x] Scoped comparison — `spec.target.namespaces` / `spec.target.labelSelector` filter the desired manifests before comparison
+- [x] Honest fetch errors — missing read RBAC surfaces as a `FetchError` condition instead of false `new` drift, and kinds resolve through API discovery (irregular plurals, CRDs installed after startup)
 
 <br/>
 
