@@ -340,8 +340,8 @@ spec:
   interval: 10m
 ```
 
-- Uses the default (root-only) load restrictions — a kustomization cannot read files outside its own directory tree.
-- Remote bases referenced by URL are fetched anonymously (they do not use the `source.kustomize.git.auth` credentials, which apply only to the top-level overlay clone).
+- Uses the default (root-only) load restrictions — loose files must sit under their kustomization's root, but a directory base such as `../base` (with its own `kustomization.yaml`) is re-rooted and still loads.
+- Remote **Git** bases (e.g. `github.com/org/repo//path?ref=v1`) are **not supported**: kustomize clones them with the `git` binary, which the controller image does not ship. Remote HTTP(S) file resources are fetched anonymously (they do not use the `source.kustomize.git.auth` credentials, which apply only to the top-level overlay clone).
 
 <br/>
 
@@ -370,7 +370,7 @@ kubectl describe driftcheck driftcheck-sample   # includes conditions and events
 - **`status.conditions`** — a `Ready` condition, `True` on a successful evaluation or `False` with a reason on failure.
 - **`status.lastCheckedAt`** — timestamp of the last completed evaluation.
 
-Per-resource `status` meanings: `changed` (exists on both sides, differs), `new` (declared, missing live), `deleted` (live, never declared), `unchanged` (in sync).
+Per-resource `status` meanings: `changed` (exists on both sides, differs), `new` (declared, missing live), `deleted` (reserved — always `0` today: each desired manifest is fetched by name, so live objects that were never declared are not discovered), `unchanged` (in sync).
 
 <br/>
 
@@ -490,6 +490,6 @@ kubectl -n kube-drift-system logs deploy/kube-drift-controller-manager -f
 
 ## Limitations
 
-- **Git private repos via `auth` only** — the top-level Git / Helm / Kustomize clone supports private repositories through `source.git.auth` (Basic / Bearer / SSH); without `auth` the clone is anonymous. Remote Kustomize bases and Helm dependencies fetched via `dependencyBuild` are still retrieved anonymously.
+- **Git private repos via `auth` only** — the top-level Git / Helm / Kustomize clone supports private repositories through `source.git.auth` (Basic / Bearer / SSH); without `auth` the clone is anonymous. Helm dependencies fetched via `dependencyBuild` and remote Kustomize HTTP(S) resources are retrieved anonymously; remote Kustomize Git bases are not supported.
 - **Self-contained Helm charts by default** — chart dependencies are expected to be vendored under `charts/`. Charts with external dependencies can opt into `source.helm.dependencyBuild: true`, which fetches them at render time over the network (HTTP(S) or `oci://` repositories only; named `@alias` repos are unsupported).
 - **ConfigMap / Secret read RBAC by default** — comparing other kinds requires granting read access, via the chart's `rbac.viewRole` / `rbac.extraRules` knobs (Helm) or a manual ClusterRoleBinding (Kustomize) (see [RBAC](#rbac-for-non-configmap-kinds)).
