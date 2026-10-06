@@ -315,7 +315,7 @@ func (r *DriftCheckReconciler) resolveGitAuth(ctx context.Context, ns string, sp
 		}
 		return &driftsource.GitAuth{SSH: &driftsource.SSHAuth{
 			PrivateKey: identity,
-			Passphrase: sec.Data[secretKeyPassword],
+			Passphrase: bytes.TrimRight(sec.Data[secretKeyPassword], "\r\n"),
 			KnownHosts: knownHosts,
 		}}, nil
 	default:

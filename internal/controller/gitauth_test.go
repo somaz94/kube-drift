@@ -86,7 +86,7 @@ func TestResolveGitAuth_SSH(t *testing.T) {
 	sec := gitAuthSecret(secretNameCreds, map[string][]byte{
 		"identity":        []byte("PEM-KEY"),
 		"known_hosts":     []byte("github.com ssh-ed25519 AAAA"),
-		secretKeyPassword: []byte("passphrase"),
+		secretKeyPassword: []byte("passphrase\r\n"), // as written by kubectl create secret --from-file
 	})
 	r := reconcilerFor(scheme, &fakeFetcher{}, sec)
 
