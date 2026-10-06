@@ -30,8 +30,11 @@ jobs:
       - name: Verify manifests and generated code
         run: |
           make manifests generate
-          git diff --exit-code -- config/ api/
-          if [ $? -ne 0 ]; then
+          if ! git diff --exit-code -- config/ api/; then
             echo "::error::Generated manifests or deepcopy are out of date. Run 'make manifests generate' and commit the changes."
+            exit 1
+          fi
+          if ! diff -u config/crd/bases/drift.somaz.io_driftchecks.yaml helm/kube-drift/crds/drift.somaz.io_driftchecks.yaml; then
+            echo "::error::helm/kube-drift/crds is out of sync with config/crd/bases. Copy the regenerated CRD into the chart."
             exit 1
           fi
