@@ -110,6 +110,42 @@ func TestRenderHelmChart_WithCRDs(t *testing.T) {
 	}
 }
 
+func TestRenderHelmChart_SubchartConditionAndTags(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "Chart.yaml"), "apiVersion: v2\nname: parent\nversion: 0.1.0\n"+
+		"dependencies:\n"+
+		"- name: cond\n  version: 0.1.0\n  condition: cond.enabled\n"+
+		"- name: tagged\n  version: 0.1.0\n  tags: [extras]\n")
+	mustWrite(t, filepath.Join(dir, "values.yaml"), "cond:\n  enabled: false\ntags:\n  extras: false\n")
+	for _, sub := range []string{"cond", "tagged"} {
+		mustWrite(t, filepath.Join(dir, "charts", sub, "Chart.yaml"), "apiVersion: v2\nname: "+sub+"\nversion: 0.1.0\n")
+		mustWrite(t, filepath.Join(dir, "charts", sub, "templates", "cm.yaml"),
+			"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: "+sub+"-cm\n")
+	}
+
+	tests := []struct {
+		name   string
+		inline string
+		want   map[string]bool
+	}{
+		{"disabled by chart defaults", "", map[string]bool{"cond-cm": false, "tagged-cm": false}},
+		{"enabled by inline values", "cond:\n  enabled: true\ntags:\n  extras: true\n", map[string]bool{"cond-cm": true, "tagged-cm": true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := renderHelmChart(dir, "rel", "ns", []byte(tt.inline), nil)
+			if err != nil {
+				t.Fatalf("renderHelmChart() error = %v", err)
+			}
+			for name, want := range tt.want {
+				if got := strings.Contains(string(out), "name: "+name); got != want {
+					t.Errorf("%s rendered = %v, want %v:\n%s", name, got, want, out)
+				}
+			}
+		})
+	}
+}
+
 func TestRenderHelmChart_BadInlineValues(t *testing.T) {
 	dir := t.TempDir()
 	writeChart(t, dir)

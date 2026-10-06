@@ -223,6 +223,12 @@ func renderHelmChart(chartDir, releaseName, namespace string, inline []byte, val
 		vals = mergeValues(vals, m)
 	}
 
+	// helm install prunes subcharts disabled by condition/tags and applies
+	// import-values here; skipping it renders disabled subcharts as drift.
+	if err := chartutil.ProcessDependenciesWithMerge(ch, vals); err != nil {
+		return nil, fmt.Errorf("process chart dependencies: %w", err)
+	}
+
 	relOpts := chartutil.ReleaseOptions{Name: releaseName, Namespace: namespace}
 	renderVals, err := chartutil.ToRenderValues(ch, vals, relOpts, chartutil.DefaultCapabilities)
 	if err != nil {
