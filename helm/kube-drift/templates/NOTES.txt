@@ -19,6 +19,3 @@ The controller is running in the "{{ include "kube-drift.namespace" . }}" namesp
 Metrics are served on port {{ .Values.metrics.port }} ({{ if .Values.metrics.secure }}HTTPS, authn/authz protected{{ else }}HTTP{{ end }}) via
 Service "{{ include "kube-drift.fullname" . }}-controller-manager-metrics-service".
 {{- end }}
-
-NOTE: This is an early scaffold (v0.1.x) — the reconcile logic is a stub and does
-not perform drift detection yet.

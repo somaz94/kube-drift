@@ -43,7 +43,7 @@ ARG GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 
 LABEL org.opencontainers.image.title="kube-drift" \
-      org.opencontainers.image.description="A brief description of your K8s controller" \
+      org.opencontainers.image.description="Kubernetes operator that detects drift between desired-state manifests and the live cluster" \
       org.opencontainers.image.url="https://github.com/somaz94/kube-drift" \
       org.opencontainers.image.source="https://github.com/somaz94/kube-drift" \
       org.opencontainers.image.licenses="Apache-2.0" \

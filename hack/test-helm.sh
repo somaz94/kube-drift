@@ -24,9 +24,6 @@ echo ""
 log_info "========================================="
 log_info "kube-drift Helm Chart Test"
 log_info "========================================="
-log_info "NOTE: the chart ships the DriftCheck CRD only; controller deployment"
-log_info "templates are not authored yet, so this validates chart packaging"
-log_info "(lint/template/package) rather than a live install."
 echo ""
 
 if ! command -v helm >/dev/null 2>&1; then

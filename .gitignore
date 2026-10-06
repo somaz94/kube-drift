@@ -5,7 +5,6 @@
 *.so
 *.dylib
 bin/*
-Dockerfile.cross
 
 # Test binary, built with `go test -c`
 *.test
@@ -16,20 +15,12 @@ Dockerfile.cross
 # Go workspace file
 go.work
 
-# Kubernetes Generated files - skip generated files, except for vendored files
-!vendor/**/zz_generated.*
-
 # editor and IDE paraphernalia
 .idea
 .vscode
 *.swp
 *.swo
 *~
-
-# Binary directory
-/bin/*
-!/bin/.gitignore
-!/bin/README.md
 
 # MacOS
 .DS_Store
