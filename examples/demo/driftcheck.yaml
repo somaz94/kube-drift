@@ -1,0 +1,15 @@
+# Checks the default namespace against desired-manifests every 10 seconds.
+apiVersion: drift.somaz.io/v1alpha1
+kind: DriftCheck
+metadata:
+  name: web
+  namespace: default
+spec:
+  source:
+    type: ConfigMap
+    configMap:
+      name: desired-manifests
+  target:
+    namespaces:
+      - default
+  interval: 10s

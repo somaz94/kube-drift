@@ -48,6 +48,17 @@ make lint            # Run golangci-lint
 
 <br/>
 
+## Demo
+
+The GIF in the README replays output saved from a real run, because the recording container has no cluster. `capture.sh` creates a kind cluster named `kube-drift-demo` with its own kubeconfig, installs the chart in `helm/kube-drift` with its published image and `rbac.viewRole.enabled=true`, sets up the manifests and the DriftCheck in `examples/demo/`, and deletes the cluster on exit. When the output changes, regenerate both:
+
+```bash
+examples/demo/capture.sh
+docker run --rm -v "$PWD:/vhs" ghcr.io/charmbracelet/vhs examples/demo/demo.tape
+```
+
+<br/>
+
 ## Deployment
 
 ```bash

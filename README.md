@@ -2,6 +2,8 @@
 
 > Kubernetes operator that continuously detects configuration **drift** between your desired-state manifests and the live cluster, on a schedule. The in-cluster, GitOps-grade counterpart to the [`kube-diff`](https://github.com/somaz94/kube-diff) CLI.
 
+![A DriftCheck reports no drift, someone scales a Deployment and deletes a ConfigMap by hand, and the next scheduled check reports one drifted and one missing resource](examples/demo/demo.gif)
+
 ![Top Language](https://img.shields.io/github/languages/top/somaz94/kube-drift?color=green&logo=go&logoColor=b)
 ![Version](https://img.shields.io/github/v/tag/somaz94/kube-drift?label=version&logo=kubernetes&logoColor=white)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
