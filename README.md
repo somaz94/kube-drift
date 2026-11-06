@@ -302,6 +302,16 @@ The end-to-end workflow (`test-e2e.yml`) runs the kind-based e2e suite on push /
 
 <br/>
 
+## Related projects
+
+- [kube-diff](https://github.com/somaz94/kube-diff): Diff local manifests (plain YAML, Helm, Kustomize) against the live cluster.
+- [kube-diff-action](https://github.com/somaz94/kube-diff-action): Run kube-diff in GitHub Actions and post the drift as a pull request comment.
+- [helios-lb](https://github.com/somaz94/helios-lb): A bare-metal LoadBalancer for Kubernetes, a lightweight MetalLB alternative.
+- [network-policy-generator](https://github.com/somaz94/network-policy-generator): An operator that learns pod traffic and generates NetworkPolicies from it.
+- [k8s-namespace-sync](https://github.com/somaz94/k8s-namespace-sync): An operator that syncs Secrets and ConfigMaps across namespaces.
+
+<br/>
+
 ## License
 
 See [LICENSE](LICENSE) — Apache 2.0.
