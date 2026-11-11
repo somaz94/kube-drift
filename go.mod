@@ -5,10 +5,10 @@ go 1.27.0
 require (
 	github.com/cyphar/filepath-securejoin v0.7.0
 	github.com/go-git/go-git/v5 v5.19.3
-	github.com/onsi/ginkgo/v2 v2.33.1
+	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/onsi/gomega v1.44.0
 	github.com/prometheus/client_golang v1.25.0
-	github.com/somaz94/kube-diff v0.6.1
+	github.com/somaz94/kube-diff v0.6.2
 	golang.org/x/crypto v0.58.0
 	helm.sh/helm/v3 v3.22.1
 	k8s.io/api v0.37.2
