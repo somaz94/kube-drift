@@ -43,7 +43,7 @@ Where `kube-diff` answers "does the cluster match this directory of YAML right n
 - **Opt-in broader read RBAC** — the controller's own role reads only `configmaps` and `secrets`; the Helm chart adds `rbac.viewRole.enabled` (bind the built-in `view` ClusterRole) and `rbac.extraRules` (a custom read-only ClusterRole) knobs for comparing arbitrary kinds — both off by default
 - **Shared engine** — reuses the comparison engine extracted from `kube-diff`, so CLI and operator produce consistent results
 
-> Source-backend maturity: `ConfigMap`, `Git`, `Helm`, and `Kustomize` sources are implemented. `Helm`/`Kustomize` render from a Git checkout and are rendered in-process. Git clones **anonymously by default**, and can authenticate to private repositories via `source.git.auth` (Basic / Bearer / SSH) when set. Helm charts are expected to be self-contained (dependencies vendored under `charts/`); charts with external dependencies can fetch them at render time with `source.helm.dependencyBuild: true` — see the [Usage Guide](docs/USAGE.md).
+> Source-backend maturity: `ConfigMap`, `Git`, `Helm`, and `Kustomize` sources are implemented. `Helm`/`Kustomize` are rendered in-process from a Git checkout. Git clones **anonymously by default**, and can authenticate to private repositories via `source.git.auth` (Basic / Bearer / SSH) when set. Helm charts are expected to be self-contained (dependencies vendored under `charts/`); charts with external dependencies can fetch them at render time with `source.helm.dependencyBuild: true` — see the [Usage Guide](docs/USAGE.md).
 
 <br/>
 
@@ -53,7 +53,7 @@ Each `DriftCheck` drives the following loop:
 
 1. **Load desired state** — fetch plain-YAML manifests from the configured `source`: ConfigMap key(s), or a Git repository cloned at `ref` with manifests read from `path`. Only manifests matching `target.namespaces` / `target.labelSelector` are kept.
 2. **Read live state** — fetch each desired object from the live cluster by group/kind/namespace/name.
-3. **Compare** — hand both sides to the `kube-diff` engine (`engine.Compare(...)`), producing a `[]*diff.Result`.
+3. **Compare** — hand both sides to the `kube-diff` engine (`engine.Run(...)`), producing a `[]*diff.Result`.
 4. **Map to status** — classify each result as `changed`, `new`, `deleted`, or `unchanged`, write the drifted entries + summary into `.status`, and stamp `lastCheckedAt`.
 5. **Requeue** — re-run after `spec.interval`.
 
@@ -122,7 +122,7 @@ helm uninstall kube-drift --namespace kube-drift-system
 
 ## Usage
 
-> Full walkthrough — install, both source types, reading results, metrics, RBAC, and troubleshooting — in the **[Usage Guide](docs/USAGE.md)**.
+> Full walkthrough — install, every source type, reading results, metrics, RBAC, and troubleshooting — in the **[Usage Guide](docs/USAGE.md)**.
 
 Create a `DriftCheck` that compares a set of desired manifests stored in a ConfigMap against the `default` namespace, re-checking every 5 minutes ([`config/samples/driftcheck_v1alpha1_sample.yaml`](config/samples/driftcheck_v1alpha1_sample.yaml)):
 
@@ -172,7 +172,7 @@ spec:
 
 | Field | Type | Description |
 |---|---|---|
-| `source.type` | enum | `Git` or `ConfigMap` — where desired manifests come from |
+| `source.type` | enum | `Git`, `ConfigMap`, `Helm`, or `Kustomize` — where desired manifests come from |
 | `source.git.url` | string | Clone URL of the repository (required when `type: Git`) |
 | `source.git.ref` | string | Branch, tag, or commit; defaults to the repo's default branch |
 | `source.git.path` | string | Directory within the repo holding the manifests; defaults to root |
@@ -302,7 +302,7 @@ The end-to-end workflow (`test-e2e.yml`) runs the kind-based e2e suite on push /
 
 <br/>
 
-## Related projects
+## Related Projects
 
 - [kube-diff](https://github.com/somaz94/kube-diff): Diff local manifests (plain YAML, Helm, Kustomize) against the live cluster.
 - [kube-diff-action](https://github.com/somaz94/kube-diff-action): Run kube-diff in GitHub Actions and post the drift as a pull request comment.
