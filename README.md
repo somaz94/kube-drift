@@ -181,9 +181,19 @@ spec:
 | `source.configMap.name` | string | ConfigMap name (required when `type: ConfigMap`) |
 | `source.configMap.namespace` | string | ConfigMap namespace; defaults to the DriftCheck's namespace |
 | `source.configMap.key` | string | Single data key; omit to concatenate every key as a YAML stream |
+| `source.helm.git` | object | Chart location (same fields as `source.git`); `path` is the chart directory. Required when `type: Helm` |
+| `source.helm.releaseName` | string | `.Release.Name` used for rendering; defaults to the DriftCheck's name |
+| `source.helm.namespace` | string | `.Release.Namespace` used for rendering; defaults to the DriftCheck's namespace |
+| `source.helm.valuesFiles` | list | Values files relative to the chart directory, merged in order |
+| `source.helm.values` | object | Inline values, applied after `valuesFiles` |
+| `source.helm.dependencyBuild` | bool | Fetch unvendored chart dependencies at render time (default `false`) |
+| `source.kustomize.git` | object | Overlay location (same fields as `source.git`); `path` holds `kustomization.yaml`. Required when `type: Kustomize` |
 | `target.namespaces` | list | Compare only desired manifests in these namespaces; manifests without a namespace are skipped |
 | `target.labelSelector` | selector | Compare only desired manifests whose labels match |
 | `interval` | duration | How often to re-evaluate drift (default `5m`) |
+| `notify.webhooks[].type` | enum | `Slack` or `Generic` (default `Generic`) |
+| `notify.webhooks[].url` | string | Webhook endpoint |
+| `notify.webhooks[].urlSecretRef` | object | `name` / `key` of a Secret entry holding the URL; takes precedence over `url` |
 
 <br/>
 
@@ -195,6 +205,7 @@ spec:
 | `driftedResources[]` | list | Resources whose live state differs from desired (`apiVersion`, `kind`, `name`, `namespace`, `status`) |
 | `summary` | object | Tally across all compared resources: `changed`, `new`, `deleted`, `unchanged` |
 | `observedGeneration` | int | `.metadata.generation` last reconciled |
+| `lastNotifiedHash` | string | Fingerprint of the drift set last sent to webhooks; suppresses repeat notifications |
 | `conditions` | list | Standard condition array for the latest observations |
 
 Per-resource `status` values: `unchanged`, `changed`, `new`, `deleted`.
@@ -248,6 +259,7 @@ This keeps the CLI and the operator behaviorally consistent: the same comparison
 │   │   ├── driftcheck_controller.go         # Reconciler — load source, run kube-diff engine, write status
 │   │   └── driftcheck_controller_test.go
 │   ├── source/                              # Git desired-state source (go-git clone → FileSource)
+│   ├── notify/                              # Slack / generic webhook delivery
 │   └── metrics/                             # kube_drift_resources drift gauge
 ├── config/
 │   ├── crd/bases/                           # Generated CRD YAML
